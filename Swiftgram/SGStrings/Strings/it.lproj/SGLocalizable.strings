@@ -1,15 +1,15 @@
-"Settings.ContentSettings" = "Impostazioni Contenuto";
+"Settings.ContentSettings" = "Impostazioni dei contenuti";
 
-"Settings.Tabs.Header" = "TAB";
-"Settings.Tabs.HideTabBar" = "Nascondi barra della tab";
-"Settings.Tabs.ShowContacts" = "Mostra tab contatti";
-"Settings.Tabs.ShowNames" = "Mostra nomi tab";
-"Settings.Tabs.SearchButton" = "Pulsante di ricerca";
-"Settings.Tabs.WideTabBar" = "Barra delle tab larga";
-"Settings.Tabs.WideTabBar.Notice" = "Mantiene la larghezza intera della barra delle tab quando alcune tab sono nascoste.";
+"Settings.Tabs.Header" = "SCHEDE";
+"Settings.Tabs.HideTabBar" = "Nascondi la barra delle schede";
+"Settings.Tabs.ShowContacts" = "Mostra la scheda Contatti";
+"Settings.Tabs.ShowNames" = "Mostra i nomi delle schede";
+"Settings.Tabs.SearchButton" = "Tasto di ricerca";
+"Settings.Tabs.WideTabBar" = "Barra delle schede larga";
+"Settings.Tabs.WideTabBar.Notice" = "Mantiene la larghezza intera della barra delle schede quando alcune schede sono nascoste.";
 
 "Settings.Folders.BottomTab" = "Cartelle in basso";
-"Settings.Folders.BottomTabStyle" = "Stile cartelle in basso";
+"Settings.Folders.BottomTabStyle" = "Stile delle cartelle in basso";
 
 /* Do not translate */
 "Settings.Folders.BottomTabStyle.ios" = "iOS";
@@ -18,7 +18,7 @@
 /* Example: Hide "All Chats" */
 "Settings.Folders.AllChatsHidden" = "Nascondi \"%@\"";
 "Settings.Folders.RememberLast" = "Apri l'ultima cartella";
-"Settings.Folders.RememberLast.Notice" = "Swiftgram aprirà l'ultima cartella utilizzata dopo il riavvio o il cambio account";
+"Settings.Folders.RememberLast.Notice" = "Swiftgram aprirà l'ultima cartella utilizzata dopo il riavvio o il cambio di account";
 
 "Settings.Folders.CompactNames" = "Spaziatura minore";
 "Settings.Folders.AllChatsTitle" = "Titolo \"Tutte le chat\"";
@@ -33,11 +33,11 @@
 
 "Settings.Profiles.Header" = "PROFILI";
 
-"Settings.Stories.Hide" = "Nascondi Storie";
+"Settings.Stories.Hide" = "Nascondi le storie";
 "Settings.Stories.WarnBeforeView" = "Chiedi prima di visualizzare";
 "Settings.Stories.DisableSwipeToRecord" = "Disabilita lo scorrimento per registrare";
 
-"Settings.Translation.QuickTranslateButton" = "Pulsante traduzione rapida";
+"Settings.Translation.QuickTranslateButton" = "Tasto di traduzione rapida";
 "Settings.Translation.Backend" = "Servizio";
 /* Do not translate */
 "Settings.Translation.Backend.default" = "Swiftgram";
@@ -55,156 +55,156 @@
 "Settings.Transcription.Backend.Notice" = "Swiftgram utilizzerà %@ se il servizio di trascrizione selezionato non è disponibile.";
 
 "Stories.Warning.Author" = "Autore";
-"Stories.Warning.ViewStory" = "Visualizzare la storia?";
+"Stories.Warning.ViewStory" = "Vuoi visualizzare la storia?";
 /* Author will be able to see that you viewed their Story */
-"Stories.Warning.Notice" = "%@ SAPRÀ CHE HAI VISTO la storia.";
-"Stories.Warning.NoticeStealth" = "%@ non saprà che hai visto la storia.";
+"Stories.Warning.Notice" = "%@ saprà che hai visto la sua storia.";
+"Stories.Warning.NoticeStealth" = "%@ non saprà che hai visto la sua storia.";
 
-"Settings.Photo.Quality.Notice" = "Qualità delle foto inviate e foto nelle storie";
+"Settings.Photo.Quality.Notice" = "Qualità delle foto inviate e delle foto nelle storie";
 "Settings.Photo.SendLarge" = "Invia foto di grandi dimensioni";
-"Settings.Photo.SendLarge.Notice" = "Aumenta il limite sulla compressione delle foto a 2560px";
+"Settings.Photo.SendLarge.Notice" = "Aumenta il limite di compressione delle foto a 2560 px";
 
 "Settings.VideoNotes.Header" = "Videomessaggi";
-"Settings.VideoNotes.StartWithRearCam" = "Inizia con la camera posteriore";
+"Settings.VideoNotes.StartWithRearCam" = "Inizia con la fotocamera posteriore";
 
-"Settings.CustomColors.Header" = "COLORI ACCOUNT";
+"Settings.CustomColors.Header" = "COLORI DELL'ACCOUNT";
 "Settings.CustomColors.Saturation" = "SATURAZIONE";
 /* Make sure to escape Percentage sign % */
 "Settings.CustomColors.Saturation.Notice" = "Imposta la saturazione a 0%% per disabilitare i colori dell'account";
 
-"Settings.UploadsBoost" = "Potenziamento del caricamento";
-"Settings.DownloadsBoost" = "Potenziamento dello scaricamento";
-"Settings.DownloadsBoost.Notice" = "Aumenta il numero di connessioni parallele e le dimensioni dei frammenti di file. Se la tua rete non riesce a gestire il carico, prova diverse opzioni che si adattano alla tua connessione.";
+"Settings.UploadsBoost" = "Velocizza i caricamenti";
+"Settings.DownloadsBoost" = "Velocizza i download";
+"Settings.DownloadsBoost.Notice" = "Aumenta il numero di connessioni parallele e la dimensione dei frammenti di file. Se la tua rete non riesce a gestire il carico, prova opzioni diverse adatte alla tua connessione.";
 "Settings.DownloadsBoost.none" = "Disabilitato";
-"Settings.DownloadsBoost.medium" = "Intermedio";
+"Settings.DownloadsBoost.medium" = "Medio";
 "Settings.DownloadsBoost.maximum" = "Massimo";
 
-"Settings.ShowProfileID" = "Mostra l'ID del profilo";
-"Settings.ShowDC" = "Mostra Data Center";
+"Settings.ShowProfileID" = "Mostra ID del profilo";
+"Settings.ShowDC" = "Mostra data center";
 "Settings.ShowCreationDate" = "Mostra data di creazione della chat";
 "Settings.ShowCreationDate.Notice" = "La data di creazione potrebbe essere sconosciuta per alcune chat.";
 
 "Settings.ShowRegDate" = "Mostra data di registrazione";
 "Settings.ShowRegDate.Notice" = "La data di registrazione è approssimativa.";
 
-"Settings.SendWithReturnKey" = "Pulsante \"Invia\" per inviare";
-"Settings.HidePhoneInSettingsUI" = "Nascondi il numero di telefono nelle impostazioni";
-"Settings.HidePhoneInSettingsUI.Notice" = "Il tuo numero verrà nascosto solo nell'interfaccia. Per nasconderlo dagli altri, apri le impostazioni della Privacy.";
+"Settings.SendWithReturnKey" = "Tasto Invio per inviare";
+"Settings.HidePhoneInSettingsUI" = "Nascondi numero di telefono nelle impostazioni";
+"Settings.HidePhoneInSettingsUI.Notice" = "Il tuo numero verrà nascosto solo nell'interfaccia. Per nasconderlo agli altri utenti, vai in Impostazioni > Privacy e sicurezza.";
 
 "PasscodeSettings.AutoLock.InFiveSeconds" = "Se assente per 5 secondi";
 
 "ProxySettings.UseSystemDNS" = "Usa DNS di sistema";
-"ProxySettings.UseSystemDNS.Notice" = "Usa DNS di sistema per bypassare il timeout se non hai accesso al DNS di Google";
+"ProxySettings.UseSystemDNS.Notice" = "Usa i DNS di sistema per aggirare il timeout se non hai accesso ai DNS di Google";
 
 /* Preserve markdown asterisks! Example: You **don't** need Telegram Premium! */
 "Common.NoTelegramPremiumNeeded" = "**Non hai bisogno** di %@!";
 "Common.RestartRequired" = "Riavvio richiesto";
-"Common.RestartNow" = "Riavvia Adesso";
+"Common.RestartNow" = "Riavvia ora";
 "Common.OpenTelegram" = "Apri Telegram";
-"Common.UseTelegramForPremium" = "Si prega di notare che per ottenere Telegram Premium, è necessario utilizzare l'app ufficiale Telegram. Una volta ottenuto Telegram Premium, tutte le sue funzionalità saranno disponibili su Swiftgram.";
+"Common.UseTelegramForPremium" = "Per ottenere Telegram Premium devi utilizzare l'app ufficiale di Telegram. Una volta attivato, tutte le funzionalità di Telegram Premium saranno disponibili anche su Swiftgram.";
 "Common.UpdateOS" = "Aggiornamento iOS richiesto";
-"Common.KnowWhatYouDo" = "Per favore, modifica queste impostazioni solo se sai cosa fanno.";
+"Common.KnowWhatYouDo" = "Modifica queste impostazioni solo se sai cosa stai facendo.";
 
 "Message.HoldToShowOrReport" = "Tieni premuto per mostrare o segnalare.";
 
-"Auth.AccountBackupReminder" = "Assicurati di avere un metodo di accesso di backup. Tieni una SIM per gli SMS o delle sessioni aperte su altri dispositivi per evitare di essere bloccato fuori.";
-"Auth.UnofficialAppCodeTitle" = "Puoi ottenere il codice solo con l'applicazione ufficiale";
+"Auth.AccountBackupReminder" = "Assicurati di avere un metodo di accesso di backup. Mantieni una SIM per gli SMS o delle sessioni attive su altri dispositivi per evitare di perdere l'accesso.";
+"Auth.UnofficialAppCodeTitle" = "Puoi ottenere il codice solo tramite l'app ufficiale";
 
 "Settings.SmallReactions" = "Reazioni piccole";
-"Settings.HideReactions" = "Nascondi Reazioni";
+"Settings.HideReactions" = "Nascondi le reazioni";
 
-"ContextMenu.SaveToCloud" = "Salva sul cloud";
-"ContextMenu.SelectFromUser" = "Seleziona dall'autore";
+"ContextMenu.SaveToCloud" = "Salva in Messaggi salvati";
+"ContextMenu.SelectFromUser" = "Seleziona i messaggi di questo utente";
 
 "Settings.ContextMenu" = "MENU CONTESTUALE";
 "Settings.ContextMenu.Notice" = "Le voci disabilitate saranno disponibili nel sottomenu \"Swiftgram\".";
 
 
-"Settings.ChatSwipeOptions" = "Opzioni scorrimento nella lista delle chat";
-"Settings.DeleteChatSwipeOption" = "Swipe per eliminare chat";
+"Settings.ChatSwipeOptions" = "Opzioni di scorrimento nella lista chat";
+"Settings.DeleteChatSwipeOption" = "Scorri per eliminare la chat";
 /* Re-word like this string on offical app https://translations.telegram.org/en/ios/groups_and_channels/Chat.NextChannelSameLocationSwipeProgress */
-"Settings.PullToNextChannel" = "Tira per il prossimo canale non letto";
+"Settings.PullToNextChannel" = "Trascina per passare al canale non letto successivo";
 /* Re-word like this string on offical app https://translations.telegram.org/en/ios/groups_and_channels/Chat.NextUnreadTopicSwipeProgress */
-"Settings.PullToNextTopic" = "Scorri per il prossimo topic";
+"Settings.PullToNextTopic" = "Trascina per passare al topic successivo";
 "Settings.GalleryCamera" = "Fotocamera nella galleria";
 "Settings.GalleryCameraPreview" = "Anteprima della fotocamera nella galleria";
 /* "Send Message As..." button */
-"Settings.SendAsButton" = "Pulsante \"%@\"";
-"Settings.SnapDeletionEffect" = "Effetti eliminazione messaggi";
+"Settings.SendAsButton" = "Tasto \"%@\"";
+"Settings.SnapDeletionEffect" = "Effetto eliminazione dei messaggi";
 
 "Settings.Stickers.Size" = "DIMENSIONE";
-"Settings.Stickers.Timestamp" = "Mostra timestamp";
+"Settings.Stickers.Timestamp" = "Mostra l'orario";
 
-"Settings.RecordingButton" = "Pulsante per la registrazione vocale";
+"Settings.RecordingButton" = "Tasto di registrazione vocale";
 
-"Settings.DefaultEmojisFirst" = "Dare priorità agli emoji standard";
-"Settings.DefaultEmojisFirst.Notice" = "Mostra gli emoji standard prima dei premium nella tastiera degli emoji";
+"Settings.DefaultEmojisFirst" = "Dai priorità agli emoji standard";
+"Settings.DefaultEmojisFirst.Notice" = "Mostra gli emoji standard prima di quelli premium nella tastiera degli emoji";
 
 /* Date when chat was created. "created: 24 May 2016" */
-"Chat.Created" = "creato il: %@";
+"Chat.Created" = "creata il: %@";
 
 /* Date when user joined the chat. "Joined Swiftgram Chat" */
-"Chat.JoinedDateTitle" = "Sì è unito a %@";
+"Chat.JoinedDateTitle" = "Si è unito a %@";
 /* Date when user registered in Telegram. Will be shown like "Registered\n24 May 2016" */
 "Chat.RegDate" = "Registrato";
 
-"Settings.messageDoubleTapActionOutgoingEdit" = "Doppio tap per modificare il messaggio";
+"Settings.messageDoubleTapActionOutgoingEdit" = "Doppio tocco per modificare il messaggio";
 
-"Settings.wideChannelPosts" = "Ampie colonne nei canali";
-"Settings.ForceEmojiTab" = "Tastiera emoji predefinita";
+"Settings.wideChannelPosts" = "Post larghi nei canali";
+"Settings.ForceEmojiTab" = "Tastiera degli emoji predefinita";
 
-"Settings.forceBuiltInMic" = "Forza Microfono Dispositivo";
+"Settings.forceBuiltInMic" = "Forza il microfono del dispositivo";
 "Settings.forceBuiltInMic.Notice" = "Se abilitato, l'app utilizzerà solo il microfono del dispositivo anche se sono collegate le cuffie.";
 
-"Settings.showChannelBottomButton" = "Pannello Inferiore del Canale";
+"Settings.showChannelBottomButton" = "Pannello inferiore del canale";
 
-"Settings.secondsInMessages" = "Secondi nei messaggi";
+"Settings.secondsInMessages" = "Mostra i secondi nei messaggi";
 
 "Settings.CallConfirmation" = "Conferma di chiamata";
-"Settings.CallConfirmation.Notice" = "Swiftgram chiederà la tua conferma prima di effettuare una chiamata.";
+"Settings.CallConfirmation.Notice" = "Swiftgram chiederà conferma prima di avviare una chiamata.";
 
 /* Confirmation before making a Call */
-"CallConfirmation.Audio.Title" = "Effettuare una chiamata?";
+"CallConfirmation.Audio.Title" = "Vuoi avviare una chiamata?";
 
 /* Confirmation before making a Video Call */
-"CallConfirmation.Video.Title" = "Effettuare una videochiamata?";
+"CallConfirmation.Video.Title" = "Vuoi avviare una videochiamata?";
 
 "MutualContact.Label" = "contatto reciproco";
 
-"Settings.swipeForVideoPIP" = "Video PIP con scorrimento";
-"Settings.swipeForVideoPIP.Notice" = "Se abilitato, scorrendo il video si aprirà in modalità Picture-in-Picture.";
+"Settings.swipeForVideoPIP" = "Picture in Picture con scorrimento";
+"Settings.swipeForVideoPIP.Notice" = "Se attivato, scorrendo su un video lo aprirà in modalità Picture in Picture.";
 
 "SessionBackup.Title" = "Backup degli account";
 "SessionBackup.Sessions.Title" = "Sessioni";
-"SessionBackup.Actions.Backup" = "Backup su Keychain";
-"SessionBackup.Actions.Restore" = "Ripristina da Keychain";
-"SessionBackup.Actions.DeleteAll" = "Elimina Backup Keychain";
-"SessionBackup.Actions.DeleteOne" = "Elimina dal Backup";
-"SessionBackup.Actions.RemoveFromApp" = "Rimuovi dall'App";
+"SessionBackup.Actions.Backup" = "Backup nel portachiavi";
+"SessionBackup.Actions.Restore" = "Ripristina dal portachiavi";
+"SessionBackup.Actions.DeleteAll" = "Elimina il backup dal portachiavi";
+"SessionBackup.Actions.DeleteOne" = "Elimina dal backup";
+"SessionBackup.Actions.RemoveFromApp" = "Rimuovi dall'app";
 "SessionBackup.LastBackupAt" = "Ultimo backup: %@";
 "SessionBackup.RestoreOK" = "OK. Sessioni ripristinate: %@";
 "SessionBackup.LoggedIn" = "Accesso effettuato";
 "SessionBackup.LoggedOut" = "Disconnesso";
 "SessionBackup.DeleteAll.Title" = "Eliminare tutte le sessioni?";
-"SessionBackup.DeleteAll.Text" = "Tutte le sessioni verranno rimosse da Keychain.\n\nGli account non verranno disconnessi da Swiftgram.";
-"SessionBackup.DeleteSingle.Title" = "Elimina 1 (una) sessione?";
-"SessionBackup.DeleteSingle.Text" = "%@ sessione verrà rimossa da Keychain.\n\nL'account non verrà disconnesso da Swiftgram.";
-"SessionBackup.RemoveFromApp.Title" = "Rimuovi account dall'App?";
-"SessionBackup.RemoveFromApp.Text" = "%@ sessione SARÀ RIMOSSA da Swiftgram! La sessione rimarrà attiva, quindi potrai ripristinarla in seguito.";
-"SessionBackup.Notice" = "Le sessioni sono crittografate e memorizzate nel dispositivo Keychain. Le sessioni non lasciano mai il dispositivo.\n\nIMPORTANTE: Per ripristinare le sessioni su un nuovo dispositivo o dopo un ripristino del sistema operativo, DEVI abilitare i backup crittografati, altrimenti Keychain non verrà trasferito.\n\nNOTA: Le sessioni possono ancora essere revocate da Telegram o da un altro dispositivo.";
+"SessionBackup.DeleteAll.Text" = "Tutte le sessioni verranno rimosse dal portachiavi.\n\nGli account non verranno disconnessi da Swiftgram.";
+"SessionBackup.DeleteSingle.Title" = "Eliminare 1 (una) sessione?";
+"SessionBackup.DeleteSingle.Text" = "La sessione %@ verrà rimossa dal portachiavi.\n\nL'account non verrà disconnesso da Swiftgram.";
+"SessionBackup.RemoveFromApp.Title" = "Rimuovere l'account dall'app?";
+"SessionBackup.RemoveFromApp.Text" = "La sessione %@ SARÀ RIMOSSA da Swiftgram! La sessione rimarrà attiva, quindi potrai ripristinarla in seguito.";
+"SessionBackup.Notice" = "Le sessioni sono crittografate e memorizzate nel portachiavi del dispositivo. Le sessioni non lasciano mai il dispositivo.\n\nIMPORTANTE: per ripristinare le sessioni su un nuovo dispositivo o dopo un ripristino del sistema operativo, DEVI abilitare i backup crittografati, altrimenti il portachiavi non verrà trasferito.\n\nNOTA: le sessioni possono comunque essere revocate da Telegram o da un altro dispositivo.";
 
-"MessageFilter.Title" = "Filtro Messaggi";
-"MessageFilter.SubTitle" = "Rimuovi distrazioni e riduci la visibilità dei messaggi contenenti le parole chiave qui sotto.\nLe parole chiave sono sensibili al caso.";
+"MessageFilter.Title" = "Filtro messaggi";
+"MessageFilter.SubTitle" = "Rimuovi le distrazioni e riduci la visibilità dei messaggi che contengono le parole chiave indicate di seguito.\nLe parole chiave fanno distinzione tra maiuscole e minuscole.";
 "MessageFilter.Keywords.Title" = "Parole chiave";
 "MessageFilter.InputPlaceholder" = "Inserisci parola chiave";
 
 "InputToolbar.Title" = "Pannello di formattazione";
 
-"Notifications.MentionsAndReplies.Title" = "@Menzioni e Risposte";
+"Notifications.MentionsAndReplies.Title" = "@Menzioni e risposte";
 "Notifications.MentionsAndReplies.value.default" = "Predefinito";
 "Notifications.MentionsAndReplies.value.silenced" = "Silenzioso";
 "Notifications.MentionsAndReplies.value.disabled" = "Disabilitato";
-"Notifications.PinnedMessages.Title" = "Messaggi fissati";
+"Notifications.PinnedMessages.Title" = "Messaggi appuntati";
 "Notifications.PinnedMessages.value.default" = "Predefinito";
 "Notifications.PinnedMessages.value.silenced" = "Silenzioso";
 "Notifications.PinnedMessages.value.disabled" = "Disabilitato";
@@ -213,55 +213,55 @@
 "PayWall.Text" = "Potenziato con funzionalità Pro";
 
 "PayWall.SessionBackup.Title" = "Backup degli account";
-"PayWall.SessionBackup.Notice" = "Accedi agli account senza codice, anche dopo la reinstallazione. Memoria sicura con portachiavi sul dispositivo.";
-"PayWall.SessionBackup.Description" = "Cambiare dispositivo o eliminare Swiftgram non è più un problema. Ripristinare tutte le sessioni che sono ancora attive sui server Telegram.";
+"PayWall.SessionBackup.Notice" = "Accedi agli account senza codice, anche dopo la reinstallazione. Archiviazione sicura tramite il portachiavi sul dispositivo.";
+"PayWall.SessionBackup.Description" = "Cambiare dispositivo o eliminare Swiftgram non è più un problema. Ripristina tutte le sessioni che sono ancora attive sui server di Telegram.";
 
-"PayWall.MessageFilter.Title" = "Filtro Messaggi";
-"PayWall.MessageFilter.Notice" = "Ridurre la visibilità di SPAM, promozioni e messaggi fastidiosi.";
+"PayWall.MessageFilter.Title" = "Filtro messaggi";
+"PayWall.MessageFilter.Notice" = "Riduci la visibilità di spam, promozioni e messaggi fastidiosi.";
 "PayWall.MessageFilter.Description" = "Crea un elenco di parole chiave che non vuoi vedere spesso e Swiftgram ridurrà le distrazioni.";
 
-"PayWall.Notifications.Title" = "Disabilita @menzioni e risposte";
+"PayWall.Notifications.Title" = "Disattiva @menzioni e risposte";
 "PayWall.Notifications.Notice" = "Nascondi o silenzia le notifiche non importanti.";
 "PayWall.Notifications.Description" = "Niente più messaggi appuntati o @menzioni quando hai bisogno di un po' di tranquillità.";
 
 "PayWall.InputToolbar.Title" = "Pannello di formattazione";
 "PayWall.InputToolbar.Notice" = "Grassetto, corsivo, link? Formattazione con un solo tocco.";
-"PayWall.InputToolbar.Description" = "Applica e cancella la formattazione o inserisci nuove linee come un Pro.";
+"PayWall.InputToolbar.Description" = "Applica e rimuovi la formattazione o inserisci interruzioni di riga come un professionista.";
 
 "PayWall.AppIcons.Title" = "Icone e badge dell'app unici";
 "PayWall.AppIcons.Notice" = "Personalizza l'aspetto di Swiftgram sulla schermata Home e negli screenshot.";
 
 "PayWall.About.Title" = "Informazioni su Swiftgram Pro";
-"PayWall.About.Notice" = "La versione gratuita di Swiftgram offre decine di funzionalità e miglioramenti rispetto all'app Telegram. Innovare e mantenere Swiftgram in sincronia con gli aggiornamenti mensili Telegram è un enorme sforzo che richiede un sacco di tempo e hardware costoso.\n\nSwiftgram è un'app open-source che rispetta la tua privacy e non ti disturba con gli annunci. Iscrivendoti a Swiftgram Pro puoi accedere a funzionalità esclusive e supportare uno sviluppatore indipendente.";
+"PayWall.About.Notice" = "La versione gratuita di Swiftgram offre decine di funzionalità e miglioramenti rispetto all'app ufficiale. Innovare e mantenere Swiftgram in sincronia con gli aggiornamenti mensili di Telegram richiede tempo e risorse importanti.\n\nSwiftgram è un'app open source che rispetta la tua privacy e non mostra annunci. Abbonandoti a Swiftgram Pro puoi accedere a funzionalità esclusive e supportare uno sviluppatore indipendente.";
 /* DO NOT TRANSLATE */
 "PayWall.About.Signature" = "@Kylmakalle";
 /* DO NOT TRANSLATE */
 "PayWall.About.SignatureURL" = "https://t.me/Kylmakalle";
 
 "PayWall.ProSupport.Title" = "Problemi con il pagamento?";
-"PayWall.ProSupport.Contact" = "Nessuna preoccupazione!";
+"PayWall.ProSupport.Contact" = "Non preoccuparti!";
 
 "PayWall.RestorePurchases" = "Ripristina acquisti";
 "PayWall.Terms" = "Termini di servizio";
 "PayWall.Privacy" = "Informativa sulla privacy";
 "PayWall.TermsURL" = "https://swiftgram.app/terms";
 "PayWall.PrivacyURL" = "https://swiftgram.app/privacy";
-"PayWall.Notice.Markdown" = "Sottoscrivendo a Swiftgram Pro accetti i [Termini di Servizio di Swiftgram](%1$@) e l'[Informativa sulla Privacy](%2$@).";
-"PayWall.Notice.Raw" = "Sottoscrivendo a Swiftgram Pro accetti i Termini di Servizio e l'Informativa sulla Privacy di Swiftgram.";
+"PayWall.Notice.Markdown" = "Abbonandoti a Swiftgram Pro accetti i [Termini di servizio di Swiftgram](%1$@) e l'[Informativa sulla privacy](%2$@).";
+"PayWall.Notice.Raw" = "Abbonandoti a Swiftgram Pro accetti i Termini di servizio e l'Informativa sulla privacy di Swiftgram.";
 
-"PayWall.Button.OpenPro" = "Usa funzionalità Pro";
+"PayWall.Button.OpenPro" = "Usa le funzionalità Pro";
 "PayWall.Button.Purchasing" = "Acquisto in corso...";
-"PayWall.Button.Restoring" = "Ripristino acquisti in corso...";
-"PayWall.Button.Validating" = "Convalida acquisto in corso...";
+"PayWall.Button.Restoring" = "Ripristino degli acquisti in corso...";
+"PayWall.Button.Validating" = "Convalida dell'acquisto in corso...";
 "PayWall.Button.PaymentsUnavailable" = "Pagamenti non disponibili";
-"PayWall.Button.BuyInAppStore" = "Iscriviti alla versione dell'App Store";
+"PayWall.Button.BuyInAppStore" = "Abbonati nella versione dell'App Store";
 "PayWall.Button.Subscribe" = "Abbonati per %@ / mese";
-"PayWall.Button.ContactingAppStore" = "Contatto App Store in corso...";
+"PayWall.Button.ContactingAppStore" = "Connessione all'App Store...";
 
 "Paywall.Error.Title" = "Errore";
 "PayWall.ValidationError" = "Errore di convalida";
-"PayWall.ValidationError.TryAgain" = "Qualcosa è andato storto durante la convalida dell'acquisto. Nessun problema! Prova a ripristinare gli acquisti più tardi.";
-"PayWall.ValidationError.Expired" = "Il tuo abbonamento è scaduto. Iscriviti di nuovo per recuperare l'accesso alle funzionalità Pro.";
+"PayWall.ValidationError.TryAgain" = "Qualcosa è andato storto durante la convalida dell'acquisto. Non preoccuparti! Prova a ripristinare gli acquisti più tardi.";
+"PayWall.ValidationError.Expired" = "Il tuo abbonamento è scaduto. Abbonati di nuovo per recuperare l'accesso alle funzionalità Pro.";
 
 "AppBadge.Title" = "Badge dell'app";
 "AppBadge.Notice" = "Personalizza il badge dell'app mostrato negli screenshot";
