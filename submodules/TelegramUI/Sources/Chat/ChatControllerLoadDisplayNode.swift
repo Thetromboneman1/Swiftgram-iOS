@@ -685,9 +685,11 @@ extension ChatControllerImpl {
         
         if #available(iOS 18.0, *) {
             if engineExperimentalInternalTranslationService == nil, let hostView = self.context.sharedContext.mainWindow?.hostView {
+                // The translation host is inserted directly into the native root controller's view.
+                // Parenting it to Window1.viewController creates an invalid cross-controller hierarchy.
                 let translationService = ExperimentalInternalTranslationServiceImpl(
                     view: hostView.containerView,
-                    parentViewController: self.context.sharedContext.mainWindow?.viewController as? UIViewController
+                    parentViewController: hostView.containerView.window?.rootViewController
                 )
                 engineExperimentalInternalTranslationService = translationService
             }
