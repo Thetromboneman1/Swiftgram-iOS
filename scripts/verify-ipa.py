@@ -156,8 +156,7 @@ def signing_certificate_sha1(bundle_path: Path, temporary_directory: Path, index
         [
             "/usr/bin/codesign",
             "-d",
-            "--extract-certificates",
-            str(prefix),
+            f"--extract-certificates={prefix}",
             str(bundle_path),
         ]
     )
