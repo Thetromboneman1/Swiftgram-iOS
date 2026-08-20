@@ -1,129 +1,97 @@
-# Swiftgram
+# Swiftgram Boneman
 
-Supercharged Telegram fork for iOS
+[![CI](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/workflows/build.yml/badge.svg?branch=boneman%2Fmain)](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/workflows/build.yml)
+[![Upstream sync](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/workflows/sync-upstream.yml/badge.svg?branch=boneman%2Fmain)](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/workflows/sync-upstream.yml)
 
-[<img src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" height="50">](https://apps.apple.com/app/apple-store/id6471879502?pt=126511626&ct=gh&mt=8)
+This is Dan's maintained Swiftgram iOS fork. It follows Swiftgram for product behavior, watches official Telegram for security and platform changes, and keeps the Boneman customization on a separate branch.
 
-- Download: [App Store](https://apps.apple.com/app/apple-store/id6471879502?pt=126511626&ct=gh&mt=8)
-- Telegram channel: https://t.me/swiftgram
-- Telegram chat: https://t.me/swiftgramchat
-- TestFlight beta, local chats, translations and other [@SwiftgramLinks](https://t.me/s/SwiftgramLinks)
+The main customization is strict Apple on-device translation. Message text on that path is translated with Apple's Translation framework. It does not intentionally fall back to Telegram, Google, Microsoft, OpenAI, DeepL, a Swiftgram service, or another translation API.
 
-Swiftgram's compilation steps are the same as for the official app. Below you'll find a complete compilation guide based on the official app.
+This project is unofficial and is not affiliated with Telegram, Swiftgram, or Apple.
 
-# Telegram iOS Source Code Compilation Guide
+## Translation
 
-We welcome all developers to use our API and source code to create applications on our platform.
-There are several things we require from **all developers** for the moment.
+The fork supports:
 
-# Creating your Telegram Application
+- Individual message translation through Telegram's native interaction surfaces.
+- Whole-chat translation for eligible visible text on iOS 18 or newer.
+- Composer translation with an inspect-and-replace step before anything is sent.
+- Automatic source-language detection where Apple's API supports it.
+- A locally remembered target-language preference.
+- Apple-managed language-resource download prompts and expected offline use after the required resources are installed and the release test confirms it.
+- A bounded in-memory queue and cache to avoid repeated work while scrolling. Whole-chat results also use Apple-provenance attributes in Telegram's local, backup-excluded Postbox so the existing message renderer can display them after restart.
 
-1. [**Obtain your own api_id**](https://core.telegram.org/api/obtaining_api_id) for your application.
-2. Please **do not** use the name Telegram for your app — or make sure your users understand that it is unofficial.
-3. Kindly **do not** use our standard logo (white paper plane in a blue circle) as your app's logo.
-3. Please study our [**security guidelines**](https://core.telegram.org/mtproto/security_guidelines) and take good care of your users' data and privacy.
-4. Please remember to publish **your** code too in order to comply with the licences.
+The app keeps Telegram's upstream minimum of iOS 13.0. Every Boneman Apple translation mode requires iOS 18 or newer. Unsupported systems do not receive a cloud fallback.
 
-# Quick Compilation Guide
+See [TRANSLATION.md](docs/TRANSLATION.md) for behavior and limits, and [TRANSLATION-PRIVACY.md](docs/TRANSLATION-PRIVACY.md) for the reviewed data flow and storage details.
 
-## Get the Code
+## Upstream model
 
-```
-git clone --recursive -j8 https://github.com/Swiftgram/Telegram-iOS.git
-```
+| Branch or remote | Purpose |
+| --- | --- |
+| `swiftgram/master` | Primary functional upstream |
+| `telegram/master` | Secondary security and platform reference |
+| `upstream/swiftgram` | Clean mirror used by automation |
+| `boneman/main` | Maintained source and customization branch |
+| `release/*` | Short-lived release preparation |
 
-## Setup Xcode
+Current audited references:
 
-Install Xcode (directly from https://developer.apple.com/download/applications or using the App Store).
+- Swiftgram: `cf8b23beaaac4126a396337ac2d5be13f9f76b66`
+- Telegram: `6ad963e5b62d354da79040f388ae2b9132fb17b8`
+- App version: `12.9.2`
 
-## Adjust Configuration
+Swiftgram updates arrive as pull requests into `boneman/main`. Official Telegram changes are monitored and reviewed selectively. Neither upstream is force-pushed into the customization branch.
 
-1. Generate a random identifier:
-```
-openssl rand -hex 8
-```
-2. Create a new Xcode project. Use `Swiftgram` as the Product Name. Use `org.{identifier from step 1}` as the Organization Identifier.
-3. Open `Keychain Access` and navigate to `Certificates`. Locate `Apple Development: your@email.address (XXXXXXXXXX)` and double tap the certificate. Under `Details`, locate `Organizational Unit`. This is the Team ID.
-4. Edit `build-system/template_minimal_development_configuration.json`. Use data from the previous steps.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md), [UPSTREAM-SYNC.md](docs/UPSTREAM-SYNC.md), and the current [PR audit](docs/PR-AUDIT.md).
 
-## Generate an Xcode project
+## Build and install
 
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=build-system/template_minimal_development_configuration.json \
-    --xcodeManagedCodesigning
-```
+The supported release path uses the repository's `Make.py` and Bazel build, not a separate Xcode project or `xcodebuild archive`.
 
-# Advanced Compilation Guide
-
-## Xcode
-
-1. Copy and edit `build-system/appstore-configuration.json`.
-2. Copy `build-system/fake-codesigning`. Create and download provisioning profiles, using the `profiles` folder as a reference for the entitlements.
-3. Generate an Xcode project:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=configuration_from_step_1.json \
-    --codesigningInformationPath=directory_from_step_2
+```bash
+git clone --recursive https://github.com/Thetromboneman1/Swiftgram-iOS.git
+cd Swiftgram-iOS
+git switch boneman/main
+scripts/doctor.sh --host-only
 ```
 
-## IPA
+Telegram API credentials are resolved at build time from 1Password vault `Boneman`, item `Telegram API`, through `/Users/corn/.local/bin/op-codex`. They become compiler definitions and are embedded in the app, as required by Telegram's build. Secret values, provisioning profiles, signing keys, dedicated Bazel caches, signed IPA files, and dSYMs are private build and release state. They must not enter this source repository or GitHub Actions. Signed IPA and dSYM assets belong only in the private release archive.
 
-1. Repeat the steps from the previous section. Use distribution provisioning profiles.
-2. Run:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    build \
-    --configurationPath=...see previous section... \
-    --codesigningInformationPath=...see previous section... \
-    --buildNumber=100001 \
-    --configuration=release_arm64
-```
+Local device builds use bundle identifier `com.boneman.swiftgram`, Team `B86H3B6X8P`, and explicit profiles for the app and six embedded extensions. Start with [BUILD.md](docs/BUILD.md). Release and device-install checks are in [RELEASE.md](docs/RELEASE.md).
 
-# FAQ
+## Releases
 
-## Xcode is stuck at "build-request.json not updated yet"
+No public release has been published yet. Release status stays pending until the signed device build, physical translation checks, and offline test pass. When published, source releases will live in this repository and development-signed IPAs will be kept in the private `Thetromboneman1/boneman-dev` archive because embedded profiles contain registered-device and signing-account metadata.
 
-Occasionally, you might observe the following message in your build log:
-```
-"/Users/xxx/Library/Developer/Xcode/DerivedData/Telegram-xxx/Build/Intermediates.noindex/XCBuildData/xxx.xcbuilddata/build-request.json" not updated yet, waiting...
-```
+- [Changelog](CHANGELOG.md)
+- [Release process](docs/RELEASE.md)
 
-Should this occur, simply cancel the ongoing build and initiate a new one.
+Do not install an IPA whose SHA-256 does not match its `checksums.txt` and `build-info.json`.
 
-## Telegram_xcodeproj: no such package 
+## Maintenance and security
 
-Following a system restart, the auto-generated Xcode project might encounter a build failure accompanied by this error:
-```
-ERROR: Skipping '@rules_xcodeproj_generated//generator/Telegram/Telegram_xcodeproj:Telegram_xcodeproj': no such package '@rules_xcodeproj_generated//generator/Telegram/Telegram_xcodeproj': BUILD file not found in directory 'generator/Telegram/Telegram_xcodeproj' of external repository @rules_xcodeproj_generated. Add a BUILD file to a directory to mark it as a package.
-```
+CI is unsigned and does not receive Apple or Telegram credentials. It validates repository integrity, the local-only translation policy, the custom translation module, and automation scripts. Signing and release stay local unless a separate reviewed design justifies moving private material into CI.
 
-If you encounter this issue, re-run the project generation steps in the README.
+Local Bazel operations run through per-process and process-group RSS limits. The guard does not cover unrelated services or repository indexers, which must be monitored separately. Codebase indexing is not part of the supported build path.
 
+Scheduled automation:
 
-# Tips
+- Checks Swiftgram daily and opens an auditable synchronization pull request when it changes.
+- Classifies drift as GREEN, YELLOW, or RED without rewriting `boneman/main`.
+- Compares official Telegram with Swiftgram and surfaces commits and changed paths matching security, crash, iOS or SDK compatibility, Xcode or Bazel/build, networking, MTProto, notification, media, audio, video, or translation signals. It does not claim to measure performance or battery impact.
+- Keeps GitHub Action revisions current through conservative Dependabot updates.
 
-## Codesigning is not required for simulator-only builds
+Report a security issue privately. Do not put Telegram credentials, provisioning profiles, login codes, device identifiers, or unredacted build logs in a public issue.
 
-Add `--disableProvisioningProfiles`:
-```
-python3 build-system/Make/Make.py \
-    --cacheDir="$HOME/telegram-bazel-cache" \
-    generateProject \
-    --configurationPath=path-to-configuration.json \
-    --codesigningInformationPath=path-to-provisioning-data \
-    --disableProvisioningProfiles
-```
+## Documentation
 
-## Versions
-
-Each release is built using a specific Xcode version (see `versions.json`). The helper script checks the versions of the installed software and reports an error if they don't match the ones specified in `versions.json`. It is possible to bypass these checks:
-
-```
-python3 build-system/Make/Make.py --overrideXcodeVersion build ... # Don't check the version of Xcode
-```
+- [Build](docs/BUILD.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Translation](docs/TRANSLATION.md)
+- [Translation privacy](docs/TRANSLATION-PRIVACY.md)
+- [Upstream synchronization](docs/UPSTREAM-SYNC.md)
+- [Pull request audit](docs/PR-AUDIT.md)
+- [Release](docs/RELEASE.md)
+- [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [Security audit](docs/SECURITY-AUDIT.md)
