@@ -1006,9 +1006,9 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 return
             }
             let useAppleTranslation = isAppleTranslationSelected(context: context)
-            // A whole chat can contain multiple source languages, so the shared source is left nil.
-            // The Apple service detects each visible message locally and prepares its exact pair.
-            let fromLang = useAppleTranslation ? nil : translationLang.fromLang
+            // The Apple service still detects each message locally, but keeps the chat-level source
+            // as a same-script fallback for short slang that NaturalLanguage misclassifies.
+            let fromLang = translationLang.fromLang
             let translationSignal = translateMessageIds(
                 context: context,
                 messageIds: Array(messageIds.map(\.messageId)),

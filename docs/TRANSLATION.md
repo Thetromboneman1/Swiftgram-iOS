@@ -80,6 +80,12 @@ complete. Visible messages are retried and a successful Apple result replaces th
 Apple whole-chat batches are allowed to finish across the history refresh produced by each result.
 Disabling translation or changing its target still invalidates queued work before any stale result
 can be written.
+The serial queue retains its batch coordinator until every result has been handed back for local
+storage. For short Cyrillic slang that the local detector classifies as another Cyrillic language,
+the chat-level source is used as a fallback; messages in other scripts retain per-message detection.
+When the chat has no stored source hint, the observed Bulgarian/Kazakh classifications for short
+Cyrillic slang fall back to Russian. A failure in one ambiguous message does not imply that a model
+download is missing; the UI reports it as a partial-message failure while other results continue.
 
 ## Cache and local state
 

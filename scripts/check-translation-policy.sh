@@ -118,7 +118,7 @@ rg --quiet 'clearCachedMessageTranslations' "${display_node_file}" \
     || fail "whole-chat disable path does not clear local translated-message state"
 rg --quiet 'engineExperimentalInternalTranslationService[[:space:]]*=' "${display_node_file}" \
     || fail "Apple TranslationSession service is not installed into the chat host"
-rg --fixed-strings --quiet 'requestedSourceLanguage ?? detectedAppleTranslationLanguage' "${service_file}" \
+rg --fixed-strings --quiet 'resolvedAppleTranslationLanguage(for: text, preferredLanguage: requestedSourceLanguage)' "${service_file}" \
     || fail "whole-chat Apple translation does not detect a source language per message before model preparation"
 rg --quiet 'if isAppleTranslationSelected\(context:[[:space:]]*context\)' "${translation_panel_file}" \
     || fail "translation provider attribution is not conditional on the selected backend"
@@ -134,6 +134,17 @@ rg --quiet 'if useAppleTranslation' "submodules/TelegramUI/Sources/ChatHistoryLi
     || fail "whole-chat scheduling does not separate Apple batches from replaceable cloud requests"
 rg --quiet 'translationSignal\.startStandalone\(\)' "submodules/TelegramUI/Sources/ChatHistoryListNode.swift" \
     || fail "Apple serial batches are cancelled by chat refreshes before every message completes"
+rg --quiet '\[BonemanTranslation\].*pair=' "${service_file}" \
+    || fail "Apple TranslationSession diagnostics are missing redacted language-pair evidence"
+if rg --line-number '\[BonemanTranslation\].*work\.key\.text' "${service_file}"; then
+    fail "Apple translation diagnostics must never log message text"
+fi
+rg --fixed-strings --quiet '[weak self, batch]' "${service_file}" \
+    || fail "Apple serial work does not retain its batch coordinator until results are persisted"
+rg --quiet 'resolvedAppleTranslationLanguage' "${service_file}" \
+    || fail "whole-chat Apple translation lacks chat-source fallback for misclassified Cyrillic slang"
+rg --fixed-strings --quiet '["bg", "kk"]' "${service_file}" \
+    || fail "observed Bulgarian and Kazakh misclassification fallback is missing"
 rg --quiet 'case[[:space:]]+system' "${simple_settings_file}" \
     || fail "Swiftgram settings do not expose the Apple system backend"
 rg --quiet 'value[[:space:]]*==[[:space:]]*\.system' "${settings_file}" \

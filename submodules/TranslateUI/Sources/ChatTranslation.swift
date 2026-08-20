@@ -178,7 +178,7 @@ private func presentAppleTranslationFailure(context: AccountContext) {
         let controller = textAlertController(
             context: context,
             title: "Apple Translation",
-            text: "This language pair is unavailable, or its on-device language pack is not installed. Download the pack when Apple prompts, then try again.",
+            text: "Apple Translation could not translate one or more messages. Unsupported or ambiguous messages will stay original while supported messages continue translating on device.",
             actions: [
                 TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})
             ]

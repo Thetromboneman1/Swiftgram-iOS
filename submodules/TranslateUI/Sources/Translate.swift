@@ -181,6 +181,30 @@ private func detectedAppleTranslationLanguage(for text: String) -> String? {
         .map { normalizeTranslationLanguage($0.key.rawValue) }
 }
 
+private func resolvedAppleTranslationLanguage(for text: String, preferredLanguage: String?) -> String? {
+    let detectedLanguage = detectedAppleTranslationLanguage(for: text)
+    // Short Russian chat slang is frequently classified as another Cyrillic language (observed
+    // as Bulgarian and Kazakh on device), even when the chat-level detector correctly reports
+    // Russian. Prefer the chat source only when the message actually uses Cyrillic and the local
+    // detector also chose a Cyrillic language. Other scripts keep their per-message detection.
+    let containsCyrillic = text.unicodeScalars.contains { scalar in
+        return (0x0400 ... 0x052f).contains(Int(scalar.value))
+    }
+    let cyrillicLanguages: Set<String> = ["be", "bg", "kk", "ky", "mk", "mn", "ru", "sr", "tg", "uk"]
+    if containsCyrillic, let detectedLanguage, ["bg", "kk"].contains(normalizeTranslationLanguage(detectedLanguage)), preferredLanguage == nil {
+        return "ru"
+    }
+    guard let preferredLanguage else {
+        return detectedLanguage
+    }
+    if containsCyrillic,
+       cyrillicLanguages.contains(normalizeTranslationLanguage(preferredLanguage)),
+       detectedLanguage.map({ cyrillicLanguages.contains(normalizeTranslationLanguage($0)) }) ?? true {
+        return normalizeTranslationLanguage(preferredLanguage)
+    }
+    return detectedLanguage ?? normalizeTranslationLanguage(preferredLanguage)
+}
+
 public func shouldScheduleAppleTranslation(text: String, toLanguage: String) -> Bool {
     let sourceLanguage = detectedAppleTranslationLanguage(for: text)
     return BonemanTranslationPolicy.shouldTranslate(
@@ -367,7 +391,7 @@ private struct TranslationViewImpl: View {
             guard let work = self.workQueue.activeWork else {
                 return
             }
-            
+
             do {
                 let targetLanguage = Locale.Language(identifier: work.key.targetLanguage)
                 let languageAvailability = LanguageAvailability()
@@ -382,6 +406,7 @@ private struct TranslationViewImpl: View {
                 }
                 switch status {
                 case .unsupported:
+                    print("[BonemanTranslation] unavailable pair=\(work.key.sourceLanguage ?? "auto")->\(work.key.targetLanguage)")
                     // Unsupported pairs must be visible to the caller. Treating this as a skipped
                     // message stores an empty terminal translation and makes the chat appear
                     // translated even though Apple produced no result.
@@ -399,6 +424,7 @@ private struct TranslationViewImpl: View {
                 case .installed:
                     break
                 @unknown default:
+                    print("[BonemanTranslation] unknown availability pair=\(work.key.sourceLanguage ?? "auto")->\(work.key.targetLanguage)")
                     self.complete(work: work, result: .failed)
                     return
                 }
@@ -416,11 +442,13 @@ private struct TranslationViewImpl: View {
                 if Translation.TranslationError.unsupportedSourceLanguage ~= error
                     || Translation.TranslationError.unsupportedTargetLanguage ~= error
                     || Translation.TranslationError.unsupportedLanguagePairing ~= error {
+                    print("[BonemanTranslation] unsupported pair=\(work.key.sourceLanguage ?? "auto")->\(work.key.targetLanguage)")
                     self.complete(work: work, result: .failed)
                 } else if Translation.TranslationError.unableToIdentifyLanguage ~= error
                     || Translation.TranslationError.nothingToTranslate ~= error {
                     self.complete(work: work, result: .skipped)
                 } else {
+                    print("[BonemanTranslation] failed pair=\(work.key.sourceLanguage ?? "auto")->\(work.key.targetLanguage) category=\(String(reflecting: type(of: error)))")
                     self.complete(work: work, result: .failed)
                 }
             }
@@ -544,7 +572,7 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
                 // TranslationSession receives an explicit pair and can prepare or download the
                 // correct Apple language model instead of silently attempting an unprepared
                 // auto-detect session.
-                let sourceLanguage = requestedSourceLanguage ?? detectedAppleTranslationLanguage(for: text)
+                let sourceLanguage = resolvedAppleTranslationLanguage(for: text, preferredLanguage: requestedSourceLanguage)
                 guard BonemanTranslationPolicy.shouldTranslate(text: text, fromLanguage: sourceLanguage, toLanguage: targetLanguage) else {
                     cachedResults[key] = ""
                     continue
@@ -572,10 +600,10 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
                 completion: onResult
             )
             for cacheKey in inputKeysByCacheKey.keys {
-                let accepted = self.workQueue.enqueue(key: cacheKey, subscriberId: subscriberId, completion: { [weak self, weak batch] result in
-                    guard let batch else {
-                        return
-                    }
+                // The queue must retain the batch until every serial work item resolves. A weak
+                // batch here deallocates the coordinator as soon as translate() returns, so Apple
+                // produces results that never reach TelegramCore for persistence.
+                let accepted = self.workQueue.enqueue(key: cacheKey, subscriberId: subscriberId, completion: { [weak self, batch] result in
                     switch result {
                     case let .translated(text):
                         self?.cache.insert(text, for: cacheKey)
@@ -594,9 +622,9 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
                 self.taskTrigger.generation &+= 1
             }
 
-            return ActionDisposable { [weak self, weak batch] in
+            return ActionDisposable { [weak self, batch] in
                 Queue.mainQueue().async {
-                    batch?.cancel()
+                    batch.cancel()
                     self?.workQueue.cancel(subscriberId: subscriberId)
                 }
             }
