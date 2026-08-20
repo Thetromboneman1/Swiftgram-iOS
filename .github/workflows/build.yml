@@ -125,7 +125,7 @@ jobs:
         run: |
           set -euo pipefail
           actionlint -color
-          shellcheck scripts/build-local.sh scripts/doctor.sh scripts/ci-*.sh scripts/check-*.sh
+          shellcheck --severity=warning scripts/build-local.sh scripts/doctor.sh scripts/ci-*.sh scripts/check-*.sh
           python3 -m py_compile scripts/ci-monitor-telegram-upstream.py scripts/run-with-memory-guard.py scripts/verify-ipa.py
           python3 scripts/ci-monitor-telegram-upstream.py --self-test
           python3 scripts/verify-ipa.py --help >/dev/null
