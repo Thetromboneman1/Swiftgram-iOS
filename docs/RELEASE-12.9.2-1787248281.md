@@ -2,7 +2,7 @@
 
 Date: 2026-08-20
 
-This is the validation record for the current Boneman release candidate. Source, build, signing, installation, login, and the repaired chat-opening path have direct evidence. Apple Translation interaction, offline operation, and runtime network observation remain open release gates. No public source release or private binary release has been published.
+This is the validation record for the current Boneman release candidate. Source, build, signing, installation, login, the repaired chat-opening path, and Russian-to-English Apple Translation in direct and group chats have direct physical-device evidence. Offline operation, runtime network observation, and a clean-tip Release repeat remain open release gates. No public source release or private binary release has been published.
 
 ## Build identity
 
@@ -52,29 +52,50 @@ The hidden Apple Translation `UIHostingController` was parented to `Window1.view
 
 Build `1787245325` is rejected and must not be distributed. Build `1787248281` replaces it.
 
+### Apple whole-chat translation
+
+The first Apple Translation builds opened chats, but whole-chat behavior was incomplete and inconsistent. The translation menu also displayed Cocoon attribution even when Apple was the selected backend. Physical-device diagnostics and repeated Russian-to-English tests isolated a chain of independent defects:
+
+1. Cocoon attribution was unconditional instead of reflecting the selected translation backend.
+2. Whole-chat Apple sessions did not prepare an explicit source-to-target language pair for each message.
+3. Empty translation attributes left by earlier failures were treated as completed work and suppressed retries.
+4. Each persisted result refreshed chat history and replaced the active serial batch subscription, cancelling later messages in the viewport.
+5. The `TranslationBatch` coordinator was retained only weakly. Apple produced valid English results, but the coordinator could deallocate before forwarding them to TelegramCore for persistence.
+6. Natural Language sometimes classified short Russian Cyrillic slang as Bulgarian or Kazakh, which produced unsupported Apple language-pair failures.
+7. A failure for one ambiguous or unsupported message displayed a misleading global language-pack alert even when the installed pair was working.
+
+[PR #4](https://github.com/Thetromboneman1/Swiftgram-iOS/pull/4) fixed the full path and merged as `22379fa8cd65dcec30a303dd1f66b9828e193cc8` after both required checks passed. Apple remains the effective default on iOS 18 and newer. Whole-chat requests remain `localOnly: true` with no Cocoon, Telegram, Google, or other cloud fallback in Apple mode. The app now prepares explicit Apple language pairs, retries stale empty results, permits the bounded serial batch to survive chat refreshes, strongly retains its coordinator through persistence, and uses the chat-level Russian source as a same-script fallback for the observed Bulgarian/Kazakh misclassification. Provider attribution now matches the active backend, and partial failures leave only the affected messages unchanged instead of claiming that a language pack is missing.
+
+The final signed Debug validation build was `12.9.2 (1787259615)`. Its verified IPA SHA-256 is `edcb43376faf26a4947476761c22ab530cf438be16a4159bd2c3857f16184790`. The signed IPA remains private local validation state and is not published in this source repository.
+
+Redacted lifecycle diagnostics recorded only language-pair and result-state metadata, never message text. They showed `ru->en` preparation completing, Apple returning translated result lengths for both long and short messages, and the pre-fix persistence loop repeating. After the strong-retention fix, the loop stopped, the translated content appeared in the chat, and the user confirmed that Russian-to-English translation worked in direct and group chats.
+
 ## Evidence
 
 | Gate | Result | Evidence |
 | --- | --- | --- |
-| Source integrity | Pass | Clean `boneman/main` at `b5d61cc040`; recursive submodules match recorded commits |
+| Source integrity | Pass for translation fix | Clean `boneman/main` at merge commit `22379fa8cd`; recursive submodules match recorded commits |
 | Translation policy | Pass | `scripts/check-translation-policy.sh` |
 | Focused translation tests | Pass | `//Swiftgram/BonemanTranslation:BonemanTranslationTests` locally and in CI |
-| Pull request protection | Pass | PRs #1 and #2 merged only after both required checks passed |
+| Pull request protection | Pass | PRs #1, #2, and #4 merged only after both required checks passed |
 | Exact-tip CI | Pass | [CI run 32399909450](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/runs/32399909450) on `b5d61cc040` |
+| Translation-fix CI | Pass | [CI run 32417369756](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/runs/32417369756) passed repository policy and focused translation tests before PR #4 merged |
 | Upstream automation | Pass | [Upstream Sync 32400475881](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/runs/32400475881) published GREEN after exact-commit policy and Translation tests; [Telegram monitor 32400475668](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/runs/32400475668) found no pending official Telegram commits |
-| Debug device build | Pass | Signed and verified build `1787247741` |
+| Debug device builds | Pass | Signed and verified crash-containment build `1787247741` and translation-fix build `1787259615` |
 | Release device build | Pass | Signed and verified build `1787248281`; IPA and dSYM checksums match |
 | Signing | Pass | Main app, six extensions, and embedded frameworks pass strict code-signature checks; development profiles, Team ID, App Group, push entitlement, registered device, and private key match |
 | Install and launch | Pass | `devicectl` installed and launched Release `1787248281`; process remained alive after the immediate-crash window |
 | Login and chat smoke test | Pass on repaired Debug build | Setup and login completed; direct and group chats opened without a crash after the containment fix |
-| Final Release chat repeat | Pending | Repeat direct and group chat opening on installed Release `1787248281` |
-| Apple Translation interactions | Pending | English to Spanish, Spanish to English, automatic source detection, download prompt, and repeated-message behavior |
+| Apple RU-to-EN chat translation | Pass on fixed Debug build | Build `1787259615`; long and short Russian messages translated in direct and group chats after Apple-managed resource preparation; user confirmed the result |
+| Apple backend attribution | Pass | Apple mode identifies Apple on-device Translation and no longer shows Cocoon attribution |
+| Failure and retry behavior | Pass for observed RU-to-EN path | Empty stale attributes retry; batches survive history refreshes; persisted results stop the prior repeat loop; isolated ambiguous messages no longer claim a missing pack |
 | Offline Translation | Pending | Install both language resources, connect over USB, disable Wi-Fi and cellular data, then repeat translations |
-| Runtime privacy observation | Pending | Review logs or traffic during Translation and confirm no Telegram or third-party translation request |
+| Runtime privacy observation | Pending | Observe traffic while translating and confirm that no translation request leaves the Apple local path |
+| Final clean-tip Release build and physical repeat | Pending | Build the merged documentation tip as Release, verify the artifact and signatures, install it, then repeat chat opening and RU-to-EN translation |
 
 ## Publication decision
 
-Publication remains blocked by the three pending Translation rows above. Passing compilation, signing, launch, and the repaired chat smoke test does not substitute for those physical privacy checks.
+Publication remains blocked by the pending offline, runtime traffic-observation, and final clean-tip Release rows above. Passing the interactive Apple Translation test does not substitute for the two physical privacy checks or the final Release repeat.
 
 When every row passes:
 
