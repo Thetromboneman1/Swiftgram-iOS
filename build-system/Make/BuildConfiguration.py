@@ -58,10 +58,27 @@ class BuildConfiguration:
         string += 'telegram_enable_icloud = {}\n'.format(self.enable_icloud)
         string += 'telegram_enable_watch = True\n'
 
-        if os.path.exists(path):
-            os.remove(path)
-        with open(path, 'w+') as file:
-            file.write(string)
+        destination_directory = os.path.dirname(os.path.abspath(path))
+        os.makedirs(destination_directory, mode=0o700, exist_ok=True)
+        descriptor, temporary_path = tempfile.mkstemp(
+            prefix='.variables.bzl.',
+            dir=destination_directory,
+            text=True,
+        )
+        try:
+            os.fchmod(descriptor, 0o600)
+            with os.fdopen(descriptor, 'w') as file:
+                descriptor = -1
+                file.write(string)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary_path, path)
+            os.chmod(path, 0o600)
+        finally:
+            if descriptor != -1:
+                os.close(descriptor)
+            if os.path.exists(temporary_path):
+                os.remove(temporary_path)
 
 
 def build_configuration_from_json(path):

@@ -28,6 +28,7 @@ DerivedData
 .DS_Store
 *.dSYM
 *.dSYM.zip
+*.xcarchive
 *.ipa
 */xcuserdata/*
 buck-out/*
@@ -65,6 +66,7 @@ bazel-telegram-ios
 bazel-telegram-ios/*
 bazel-testlogs
 bazel-testlogs/*
+/bazel-*
 xcodeproj.bazelrc
 */*.swp
 *.swp
@@ -90,3 +92,13 @@ xcode-files
 **/node_modules/
 tools/sim-watcher/dist/
 .mcp.json
+
+# Boneman local build output and private signing/configuration material.
+/artifacts/
+/.local/
+/scripts/configuration.json
+/scripts/configuration.*.json
+/.signing/
+/*.mobileprovision
+/*.p12
+/*.p8
