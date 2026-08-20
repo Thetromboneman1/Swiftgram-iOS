@@ -25,6 +25,8 @@ Do not tag a release until all applicable rows are recorded:
 
 An unavailable physical test remains a release blocker. It must not be converted into a pass based on a simulator or static review.
 
+The current candidate's completed and pending evidence is recorded in [RELEASE-12.9.2-1787248281.md](RELEASE-12.9.2-1787248281.md).
+
 ## Build and inspect
 
 Build through the wrapper:

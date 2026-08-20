@@ -66,6 +66,7 @@ No public release has been published yet. Release status stays pending until the
 
 - [Changelog](CHANGELOG.md)
 - [Release process](docs/RELEASE.md)
+- [Current 12.9.2 release validation record](docs/RELEASE-12.9.2-1787248281.md)
 
 Do not install an IPA whose SHA-256 does not match its `checksums.txt` and `build-info.json`.
 

@@ -6,7 +6,7 @@ This review covers the maintained diff from Swiftgram `cf8b23beaaac4126a396337ac
 
 ## Release posture
 
-The source is still pre-release until the final combined diff, signed IPA, embedded profiles, physical-device behavior, and offline translation test pass. A clean compile or successful launch does not close those gates.
+The source is still pre-release. Signed Debug and Release device builds, profile and entitlement verification, installation, login, and the repaired direct/group chat-opening path pass. Apple Translation interaction, offline behavior, and runtime network observation remain open gates. A clean compile or successful launch does not close them. See the current [release validation record](RELEASE-12.9.2-1787248281.md).
 
 ## Trust boundaries
 
