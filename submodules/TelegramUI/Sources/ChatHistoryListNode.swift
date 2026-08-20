@@ -1005,16 +1005,27 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             guard let self, let context, let translationLang = self.translationLang else {
                 return
             }
+            let useAppleTranslation = isAppleTranslationSelected(context: context)
             // A whole chat can contain multiple source languages, so the shared source is left nil.
             // The Apple service detects each visible message locally and prepares its exact pair.
-            let fromLang = isAppleTranslationSelected(context: context) ? nil : translationLang.fromLang
-            self.translationDisposable.set(translateMessageIds(
+            let fromLang = useAppleTranslation ? nil : translationLang.fromLang
+            let translationSignal = translateMessageIds(
                 context: context,
                 messageIds: Array(messageIds.map(\.messageId)),
                 fromLang: fromLang,
                 toLang: translationLang.toLang,
                 viaText: !context.isPremium || SGSimpleSettings.shared.translationBackend == SGSimpleSettings.TranslationBackend.gtranslate.rawValue
-            ).start())
+            )
+            if useAppleTranslation {
+                // Each successful Apple result refreshes chat history. Replacing the active
+                // subscription on that refresh cancels the rest of the serial Apple batch and
+                // produces a partially translated viewport. Let the bounded Apple queue finish;
+                // disable and target-language changes still invalidate it through
+                // clearCachedMessageTranslations and its persistence generation.
+                let _ = translationSignal.startStandalone()
+            } else {
+                self.translationDisposable.set(translationSignal.start())
+            }
         }
         self.factCheckProcessingManager.process = { [weak context] messageIds in
             if let context {

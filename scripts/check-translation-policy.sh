@@ -130,6 +130,10 @@ for retry_file in "${chat_file}" "submodules/TelegramUI/Sources/ChatHistoryListN
     rg --quiet 'translation\.hasRenderableContent' "${retry_file}" \
         || fail "${retry_file} lets blank local translation attributes suppress retries"
 done
+rg --quiet 'if useAppleTranslation' "submodules/TelegramUI/Sources/ChatHistoryListNode.swift" \
+    || fail "whole-chat scheduling does not separate Apple batches from replaceable cloud requests"
+rg --quiet 'translationSignal\.startStandalone\(\)' "submodules/TelegramUI/Sources/ChatHistoryListNode.swift" \
+    || fail "Apple serial batches are cancelled by chat refreshes before every message completes"
 rg --quiet 'case[[:space:]]+system' "${simple_settings_file}" \
     || fail "Swiftgram settings do not expose the Apple system backend"
 rg --quiet 'value[[:space:]]*==[[:space:]]*\.system' "${settings_file}" \

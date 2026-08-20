@@ -77,6 +77,9 @@ Unsupported language pairs and Apple session failures are reported to the user. 
 as empty successful translations, and they never fall back to Telegram or another cloud translator.
 Blank local attributes left by an interrupted or older failed translation are not considered
 complete. Visible messages are retried and a successful Apple result replaces the stale attribute.
+Apple whole-chat batches are allowed to finish across the history refresh produced by each result.
+Disabling translation or changing its target still invalidates queued work before any stale result
+can be written.
 
 ## Cache and local state
 
