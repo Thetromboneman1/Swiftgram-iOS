@@ -964,6 +964,7 @@ private final class DecompressedData {
     private let compressedData: Data
     private let dataRange: Range<Int>
     private let stream: UnsafeMutablePointer<compression_stream>
+    private var isStreamInitialized = false
     private var isComplete = false
     // Bytes of dataRange already consumed by compression_stream_process. src_ptr
     // cannot be cached across calls: it must be re-derived from a live
@@ -975,22 +976,19 @@ private final class DecompressedData {
         self.dataRange = dataRange
 
         self.stream = UnsafeMutablePointer<compression_stream>.allocate(capacity: 1)
-        // Do NOT deallocate self.stream here on failure: since all stored
-        // properties (incl. self.stream) are already assigned at this point,
-        // Swift's ARC still calls deinit on this failed-init instance once
-        // `return nil` executes below — and deinit unconditionally destroys
-        // and deallocates self.stream too. Deallocating it here as well was a
-        // double free (libsystem_malloc "pointer being freed was not
-        // allocated" -> SIGABRT, seen in the field on rare
-        // compression_stream_init failures). Let deinit be the single owner
-        // of that cleanup.
+        // Do not clean up here: all stored properties are assigned, so Swift
+        // runs deinit after a failable return. Deinit deallocates the pointer
+        // exactly once and destroys the stream only after successful init.
         guard compression_stream_init(self.stream, COMPRESSION_STREAM_DECODE, algorithm) != COMPRESSION_STATUS_ERROR else {
             return nil
         }
+        self.isStreamInitialized = true
     }
 
     deinit {
-        compression_stream_destroy(self.stream)
+        if self.isStreamInitialized {
+            compression_stream_destroy(self.stream)
+        }
         self.stream.deallocate()
     }
 
