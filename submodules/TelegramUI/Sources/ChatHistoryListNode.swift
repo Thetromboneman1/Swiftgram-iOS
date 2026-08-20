@@ -1005,8 +1005,8 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             guard let self, let context, let translationLang = self.translationLang else {
                 return
             }
-            // A whole chat can contain multiple source languages. Apple TranslationSession must
-            // auto-detect each visible message independently, so Apple work never fixes a source.
+            // A whole chat can contain multiple source languages, so the shared source is left nil.
+            // The Apple service detects each visible message locally and prepares its exact pair.
             let fromLang = isAppleTranslationSelected(context: context) ? nil : translationLang.fromLang
             self.translationDisposable.set(translateMessageIds(
                 context: context,

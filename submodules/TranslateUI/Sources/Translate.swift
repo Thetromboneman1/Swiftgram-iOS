@@ -382,7 +382,10 @@ private struct TranslationViewImpl: View {
                 }
                 switch status {
                 case .unsupported:
-                    self.complete(work: work, result: .skipped)
+                    // Unsupported pairs must be visible to the caller. Treating this as a skipped
+                    // message stores an empty terminal translation and makes the chat appear
+                    // translated even though Apple produced no result.
+                    self.complete(work: work, result: .failed)
                     return
                 case .supported:
                     // Apple owns the language-resource consent and download UI. Message content
@@ -412,8 +415,9 @@ private struct TranslationViewImpl: View {
             } catch {
                 if Translation.TranslationError.unsupportedSourceLanguage ~= error
                     || Translation.TranslationError.unsupportedTargetLanguage ~= error
-                    || Translation.TranslationError.unsupportedLanguagePairing ~= error
-                    || Translation.TranslationError.unableToIdentifyLanguage ~= error
+                    || Translation.TranslationError.unsupportedLanguagePairing ~= error {
+                    self.complete(work: work, result: .failed)
+                } else if Translation.TranslationError.unableToIdentifyLanguage ~= error
                     || Translation.TranslationError.nothingToTranslate ~= error {
                     self.complete(work: work, result: .skipped)
                 } else {
@@ -528,13 +532,19 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
         }
         
         func translate(texts: [AnyHashable: String], fromLang: String?, toLang: String, onResult: @escaping ([AnyHashable: String]?) -> Void) -> Disposable {
-            let sourceLanguage = fromLang.flatMap { value -> String? in
+            let requestedSourceLanguage = fromLang.flatMap { value -> String? in
                 return value.isEmpty ? nil : normalizeTranslationLanguage(value)
             }
             let targetLanguage = normalizeTranslationLanguage(toLang)
             var cachedResults: [AnyHashable: String] = [:]
             var inputKeysByCacheKey: [BonemanTranslationCacheKey: [AnyHashable]] = [:]
             for (key, text) in texts {
+                // Whole-chat translation intentionally arrives without a single source language
+                // because a chat can contain several languages. Detect each message locally so
+                // TranslationSession receives an explicit pair and can prepare or download the
+                // correct Apple language model instead of silently attempting an unprepared
+                // auto-detect session.
+                let sourceLanguage = requestedSourceLanguage ?? detectedAppleTranslationLanguage(for: text)
                 guard BonemanTranslationPolicy.shouldTranslate(text: text, fromLanguage: sourceLanguage, toLanguage: targetLanguage) else {
                     cachedResults[key] = ""
                     continue

@@ -51,6 +51,7 @@ outgoing_file="submodules/TelegramUI/Sources/Chat/ChatMessageDisplaySendMessageO
 message_file="submodules/TelegramUI/Components/Chat/ChatMessageBubbleItemNode/Sources/ChatMessageBubbleItemNode.swift"
 controller_file="submodules/TelegramUI/Sources/ChatController.swift"
 display_node_file="submodules/TelegramUI/Sources/Chat/ChatControllerLoadDisplayNode.swift"
+translation_panel_file="submodules/TelegramUI/Components/TranslateHeaderPanelComponent/Sources/ChatTranslationPanelNode.swift"
 settings_file="Swiftgram/SGSettingsUI/Sources/SGSettingsController.swift"
 simple_settings_file="Swiftgram/SGSimpleSettings/Sources/SimpleSettings.swift"
 simple_settings_build="Swiftgram/SGSimpleSettings/BUILD"
@@ -67,6 +68,7 @@ integration_files=(
     "${message_file}"
     "${controller_file}"
     "${display_node_file}"
+    "${translation_panel_file}"
     "${settings_file}"
     "${simple_settings_file}"
     "${simple_settings_build}"
@@ -114,6 +116,12 @@ rg --quiet 'clearCachedMessageTranslations' "${display_node_file}" \
     || fail "whole-chat disable path does not clear local translated-message state"
 rg --quiet 'engineExperimentalInternalTranslationService[[:space:]]*=' "${display_node_file}" \
     || fail "Apple TranslationSession service is not installed into the chat host"
+rg --fixed-strings --quiet 'requestedSourceLanguage ?? detectedAppleTranslationLanguage' "${service_file}" \
+    || fail "whole-chat Apple translation does not detect a source language per message before model preparation"
+rg --quiet 'if isAppleTranslationSelected\(context:[[:space:]]*context\)' "${translation_panel_file}" \
+    || fail "translation provider attribution is not conditional on the selected backend"
+rg --quiet 'Translations use Apple Translation on device\.' "${translation_panel_file}" \
+    || fail "Apple whole-chat translation is missing on-device provider attribution"
 rg --quiet 'case[[:space:]]+system' "${simple_settings_file}" \
     || fail "Swiftgram settings do not expose the Apple system backend"
 rg --quiet 'value[[:space:]]*==[[:space:]]*\.system' "${settings_file}" \

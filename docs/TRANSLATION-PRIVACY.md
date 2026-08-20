@@ -62,6 +62,11 @@ Telegram excludes its local account/Postbox directory from device backups. Bonem
 - `localOnly` requests stop before Telegram's `messages.translateText` RPC.
 - The Apple backend does not use Swiftgram's Google translation wrapper.
 - Poll, audio, unsupported rich content, empty text, emoji-only text, and URL-only text are filtered before scheduling.
+- Whole-chat source detection uses `NLLanguageRecognizer` locally. The detected source is passed to
+  `TranslationSession` so Apple can prepare the exact language model; message text is not sent to a
+  provider for detection.
+- Provider attribution is selected from the effective backend. Apple mode cannot display or open
+  Cocoon provider information.
 - Source text is checked again before a message attribute is written, so an edited message cannot receive a translation for stale text.
 - Cancellation invalidates subscribers and prevents later Postbox writes.
 - The outgoing draft is checked again before a translated replacement is applied.
