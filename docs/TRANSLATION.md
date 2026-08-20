@@ -75,6 +75,8 @@ installed. Whole-chat work therefore detects the source before creating the sess
 
 Unsupported language pairs and Apple session failures are reported to the user. They are not stored
 as empty successful translations, and they never fall back to Telegram or another cloud translator.
+Blank local attributes left by an interrupted or older failed translation are not considered
+complete. Visible messages are retried and a successful Apple result replaces the stale attribute.
 
 ## Cache and local state
 

@@ -2929,7 +2929,12 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                             guard message.author?.id != self.context.account.peerId else {
                                 continue
                             }
-                            if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == translateToLanguage {
+                            if message.attributes.contains(where: { attribute in
+                                guard let translation = attribute as? TranslationMessageAttribute else {
+                                    return false
+                                }
+                                return translation.toLang == translateToLanguage && translation.hasRenderableContent
+                            }) {
                                 continue
                             }
                             if useAppleTranslation {
@@ -2957,7 +2962,12 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                                 guard message.author?.id != self.context.account.peerId else {
                                     continue
                                 }
-                                if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == translateToLanguage {
+                                if message.attributes.contains(where: { attribute in
+                                    guard let translation = attribute as? TranslationMessageAttribute else {
+                                        return false
+                                    }
+                                    return translation.toLang == translateToLanguage && translation.hasRenderableContent
+                                }) {
                                     continue
                                 }
                                 if useAppleTranslation {

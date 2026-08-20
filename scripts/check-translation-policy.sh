@@ -43,6 +43,7 @@ rg --quiet 'testCacheIsBoundedAndUsesRecentAccessForEviction' "${test_root}" \
     || fail "tests do not cover bounded cache eviction"
 
 core_file="submodules/TelegramCore/Sources/TelegramEngine/Messages/Translate.swift"
+translation_attribute_file="submodules/TelegramCore/Sources/SyncCore/SyncCore_TranslationMessageAttribute.swift"
 engine_file="submodules/TelegramCore/Sources/TelegramEngine/Messages/TelegramEngineMessages.swift"
 service_file="submodules/TranslateUI/Sources/Translate.swift"
 screen_file="submodules/TranslateUI/Sources/TranslateScreen.swift"
@@ -60,6 +61,7 @@ translate_ui_build="submodules/TranslateUI/BUILD"
 
 integration_files=(
     "${core_file}"
+    "${translation_attribute_file}"
     "${engine_file}"
     "${service_file}"
     "${screen_file}"
@@ -122,6 +124,12 @@ rg --quiet 'if isAppleTranslationSelected\(context:[[:space:]]*context\)' "${tra
     || fail "translation provider attribution is not conditional on the selected backend"
 rg --quiet 'Translations use Apple Translation on device\.' "${translation_panel_file}" \
     || fail "Apple whole-chat translation is missing on-device provider attribution"
+rg --quiet 'public var hasRenderableContent' "${translation_attribute_file}" \
+    || fail "translation attributes do not distinguish blank failures from renderable results"
+for retry_file in "${chat_file}" "submodules/TelegramUI/Sources/ChatHistoryListNode.swift"; do
+    rg --quiet 'translation\.hasRenderableContent' "${retry_file}" \
+        || fail "${retry_file} lets blank local translation attributes suppress retries"
+done
 rg --quiet 'case[[:space:]]+system' "${simple_settings_file}" \
     || fail "Swiftgram settings do not expose the Apple system backend"
 rg --quiet 'value[[:space:]]*==[[:space:]]*\.system' "${settings_file}" \
