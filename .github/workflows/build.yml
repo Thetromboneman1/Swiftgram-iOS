@@ -96,6 +96,20 @@ jobs:
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
           echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
 
+      - name: Install pinned ripgrep
+        env:
+          RIPGREP_VERSION: 15.2.0
+          RIPGREP_SHA256: 33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
+        run: |
+          set -euo pipefail
+          archive="ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/${archive}"
+          echo "${RIPGREP_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}"
+          echo "${RUNNER_TEMP}/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl" >> "${GITHUB_PATH}"
+
       - name: Validate repository and translation privacy boundary
         working-directory: ${{ inputs.trusted_validator_ref != '' && 'candidate' || '.' }}
         env:
