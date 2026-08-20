@@ -562,6 +562,8 @@ app_groups_fragment = """
     </array>
     <key>application-identifier</key>
     <string>{telegram_team_id}.{telegram_bundle_id}</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>{telegram_team_id}</string>
 """.format(
     telegram_team_id=telegram_team_id,
     telegram_bundle_id=telegram_bundle_id
