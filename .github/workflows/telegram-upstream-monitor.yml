@@ -1,0 +1,71 @@
+name: Telegram Root Upstream Monitor
+
+on:
+  schedule:
+    - cron: "41 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: telegram-root-upstream-monitor
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: Compare Telegram root with Swiftgram
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out monitor implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          submodules: false
+
+      - name: Compare root upstreams
+        id: compare
+        env:
+          REPORT_PATH: ${{ runner.temp }}/telegram-upstream-report.md
+          METADATA_PATH: ${{ runner.temp }}/telegram-upstream-report.json
+        run: |
+          set -euo pipefail
+          python3 scripts/ci-monitor-telegram-upstream.py \
+            --swiftgram-repository Swiftgram/Telegram-iOS \
+            --telegram-repository TelegramMessenger/Telegram-iOS \
+            --report "${REPORT_PATH}" \
+            --metadata "${METADATA_PATH}"
+          cat "${REPORT_PATH}" >> "${GITHUB_STEP_SUMMARY}"
+          state="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["state"])' "${METADATA_PATH}")"
+          echo "state=${state}" >> "${GITHUB_OUTPUT}"
+
+      - name: Surface aggregate triage state
+        env:
+          MONITOR_STATE: ${{ steps.compare.outputs.state }}
+        run: |
+          case "${MONITOR_STATE}" in
+            REVIEW)
+              echo "::warning title=Telegram root upstream::Potentially relevant official changes need selective review"
+              ;;
+            INFO)
+              echo "::notice title=Telegram root upstream::Official commits are pending with no high-priority keyword or path signal"
+              ;;
+            CLEAR)
+              echo "::notice title=Telegram root upstream::No official Telegram commits are pending in Swiftgram"
+              ;;
+          esac
+
+      - name: Upload aggregate comparison report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: telegram-root-upstream-report
+          path: |
+            ${{ runner.temp }}/telegram-upstream-report.md
+            ${{ runner.temp }}/telegram-upstream-report.json
+          if-no-files-found: error
+          retention-days: 30

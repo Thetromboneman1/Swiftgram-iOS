@@ -1,0 +1,117 @@
+name: Upstream Sync
+
+on:
+  schedule:
+    - cron: "23 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upstream-sync
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare trusted upstream sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      drift_status: ${{ steps.sync.outputs.drift_status }}
+      automation_tip: ${{ steps.sync.outputs.automation_tip }}
+      pr_number: ${{ steps.sync.outputs.pr_number }}
+      target_tip: ${{ steps.sync.outputs.target_tip }}
+      upstream_tip: ${{ steps.sync.outputs.upstream_tip }}
+      validation_base: ${{ steps.sync.outputs.validation_base }}
+      validation_commit: ${{ steps.sync.outputs.validation_commit }}
+    steps:
+      - name: Check out trusted maintained automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          filter: blob:none
+          fetch-depth: 0
+          persist-credentials: false
+          ref: boneman/main
+          submodules: false
+
+      - name: Update tracking branch and prepare validation
+        id: sync
+        env:
+          CI_SYNC_PHASE: prepare
+          CI_SYNC_USE_FILTER: "true"
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: boneman/main
+          TRACKING_BRANCH: upstream/swiftgram
+          UPSTREAM_BRANCH: master
+          UPSTREAM_URL: https://github.com/Swiftgram/Telegram-iOS.git
+        run: scripts/ci-sync-upstream.sh
+
+  validate:
+    name: Validate upstream merge without write credentials
+    needs: prepare
+    if: needs.prepare.outputs.validation_commit != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml
+    with:
+      checkout_ref: ${{ needs.prepare.outputs.validation_commit }}
+      base_sha: ${{ needs.prepare.outputs.validation_base }}
+      head_sha: ${{ needs.prepare.outputs.validation_commit }}
+      trusted_validator_ref: ${{ needs.prepare.outputs.automation_tip }}
+
+  finalize:
+    name: Finalize trusted upstream sync
+    needs:
+      - prepare
+      - validate
+    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.validation_commit != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out trusted maintained automation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          filter: blob:none
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.automation_tip }}
+          submodules: false
+
+      - name: Publish commit-bound validation result
+        id: sync
+        env:
+          CI_SYNC_PHASE: finalize
+          CI_SYNC_EXPECTED_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          CI_SYNC_USE_FILTER: "true"
+          CI_SYNC_VALIDATED_COMMIT: ${{ needs.prepare.outputs.validation_commit }}
+          CI_SYNC_VALIDATION_RESULT: ${{ needs.validate.result == 'success' && 'PASS' || 'FAIL' }}
+          GH_TOKEN: ${{ github.token }}
+          TARGET_BRANCH: boneman/main
+          TRACKING_BRANCH: upstream/swiftgram
+          UPSTREAM_BRANCH: master
+          UPSTREAM_URL: https://github.com/Swiftgram/Telegram-iOS.git
+        run: scripts/ci-sync-upstream.sh
+
+      - name: Publish drift annotation
+        if: always() && steps.sync.outputs.drift_status != ''
+        env:
+          DRIFT_STATUS: ${{ steps.sync.outputs.drift_status }}
+        run: |
+          case "${DRIFT_STATUS}" in
+            GREEN)
+              echo "::notice title=Upstream drift::GREEN - the exact merge commit passed repository policy and focused Translation tests"
+              ;;
+            YELLOW)
+              echo "::warning title=Upstream drift::YELLOW - merge validation failed, changed, or was not confirmed"
+              ;;
+            RED)
+              echo "::error title=Upstream drift::RED - upstream cannot be integrated safely"
+              ;;
+          esac

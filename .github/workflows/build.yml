@@ -1,109 +1,219 @@
 name: CI
 
 on:
-  # push:
-  #   branches: [ master ]
-
+  push:
+    branches:
+      - boneman/main
+  pull_request:
+    branches:
+      - boneman/main
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      checkout_ref:
+        description: Exact commit to validate.
+        required: false
+        type: string
+      base_sha:
+        description: Committed-range base for whitespace validation.
+        required: false
+        type: string
+      head_sha:
+        description: Committed-range head for whitespace validation.
+        required: false
+        type: string
+      trusted_validator_ref:
+        description: Exact maintained-branch commit supplying trusted policy scripts.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ inputs.checkout_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: macos-13
-
+  repository-policy:
+    name: Repository and translation policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v2
+      - name: Check out repository and submodules
+        if: inputs.trusted_validator_ref == ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          submodules: 'recursive'
-          fetch-depth: '0'
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          submodules: recursive
 
-      - name: Set active Xcode path
+      - name: Check out trusted validation implementation
+        if: inputs.trusted_validator_ref != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ inputs.trusted_validator_ref }}
+          submodules: false
+
+      - name: Check out untrusted upstream candidate
+        if: inputs.trusted_validator_ref != ''
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          path: candidate
+          persist-credentials: false
+          ref: ${{ inputs.checkout_ref }}
+          submodules: recursive
+
+      - name: Install pinned actionlint
+        env:
+          ACTIONLINT_VERSION: 1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
         run: |
-          XCODE_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["xcode"]);')
-          sudo xcode-select -s /Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
 
-      - name: Create canonical source directory
+      - name: Install pinned Gitleaks
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
         run: |
-          set -x
-          sudo mkdir -p /Users/Shared
-          cp -R $GITHUB_WORKSPACE /Users/Shared/
-          mv /Users/Shared/$(basename $GITHUB_WORKSPACE) /Users/Shared/telegram-ios
+          set -euo pipefail
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl --fail --location --silent --show-error \
+            --output "${RUNNER_TEMP}/${archive}" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
+          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
+          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
 
-      - name: Build the App
+      - name: Validate repository and translation privacy boundary
+        working-directory: ${{ inputs.trusted_validator_ref != '' && 'candidate' || '.' }}
+        env:
+          CI_COMMITTED_BASE_SHA: ${{ inputs.base_sha || github.event.pull_request.base.sha || github.event.before }}
+          CI_COMMITTED_HEAD_SHA: ${{ inputs.head_sha || github.event.pull_request.head.sha || github.sha }}
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+          VALIDATOR_PATH: ${{ inputs.trusted_validator_ref != '' && '../scripts/ci-validate-repository.sh' || 'scripts/ci-validate-repository.sh' }}
+        run: "${VALIDATOR_PATH}"
+
+      - name: Validate workflows and helper scripts
+        working-directory: ${{ inputs.trusted_validator_ref != '' && 'candidate' || '.' }}
         run: |
-          set -x
+          set -euo pipefail
+          actionlint -color
+          shellcheck scripts/build-local.sh scripts/doctor.sh scripts/ci-*.sh scripts/check-*.sh
+          python3 -m py_compile scripts/ci-monitor-telegram-upstream.py scripts/run-with-memory-guard.py scripts/verify-ipa.py
+          python3 scripts/ci-monitor-telegram-upstream.py --self-test
+          python3 scripts/verify-ipa.py --help >/dev/null
+          scripts/ci-test-sync-upstream.sh
 
-          # source code paths are included in the final binary, so we need to make them stable across builds
-          SOURCE_DIR=/Users/Shared/telegram-ios
+      - name: Scan tracked source and changed history for secrets
+        working-directory: ${{ inputs.trusted_validator_ref != '' && 'candidate' || '.' }}
+        env:
+          MEMORY_GUARD_PATH: ${{ inputs.trusted_validator_ref != '' && '../scripts/run-with-memory-guard.py' || 'scripts/run-with-memory-guard.py' }}
+          SCAN_BASE_SHA: ${{ inputs.base_sha || github.event.pull_request.base.sha || github.event.before }}
+          SCAN_HEAD_SHA: ${{ inputs.head_sha || github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          python3 "${MEMORY_GUARD_PATH}" \
+            --max-process-mib 4096 \
+            --max-group-mib 8192 \
+            -- gitleaks dir . \
+            --config .gitleaks.toml \
+            --gitleaks-ignore-path . \
+            --redact=100 \
+            --timeout 1800 \
+            --no-banner
+          if [[ "${SCAN_BASE_SHA}" =~ ^[0-9a-f]{40}$ ]] && \
+             [[ "${SCAN_HEAD_SHA}" =~ ^[0-9a-f]{40}$ ]] && \
+             [[ "${SCAN_BASE_SHA}" != 0000000000000000000000000000000000000000 ]]; then
+            log_range="${SCAN_BASE_SHA}..${SCAN_HEAD_SHA}"
+          elif git rev-parse --verify HEAD^1 >/dev/null 2>&1; then
+            log_range="HEAD^1..HEAD"
+          else
+            log_range="HEAD"
+          fi
+          python3 "${MEMORY_GUARD_PATH}" \
+            --max-process-mib 4096 \
+            --max-group-mib 8192 \
+            -- gitleaks git . \
+            --config .gitleaks.toml \
+            --gitleaks-ignore-path /dev/null \
+            --log-opts="${log_range}" \
+            --redact=100 \
+            --timeout 1800 \
+            --no-banner
 
-          # use canonical bazel root
-          BAZEL_USER_ROOT="/private/var/tmp/_bazel_containerhost"
+  translation-tests:
+    name: Run Boneman translation tests
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - name: Check out repository and submodules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          submodules: recursive
 
-          cd $SOURCE_DIR
+      - name: Show Apple build environment
+        run: |
+          set -euo pipefail
+          sw_vers
+          xcodebuild -version
 
-          BUILD_NUMBER_OFFSET="$(cat build_number_offset)"
-
-          export APP_VERSION=$(cat versions.json | python3 -c 'import json,sys;obj=json.load(sys.stdin);print(obj["app"]);')
-          export COMMIT_COUNT=$(git rev-list --count HEAD)
-          export COMMIT_COUNT="$(($COMMIT_COUNT+$BUILD_NUMBER_OFFSET))"
-          export BUILD_NUMBER="$COMMIT_COUNT"
-          echo "BUILD_NUMBER=$(echo $BUILD_NUMBER)" >> $GITHUB_ENV
-          echo "APP_VERSION=$(echo $APP_VERSION)" >> $GITHUB_ENV
-
-          python3 build-system/Make/ImportCertificates.py --path build-system/fake-codesigning/certs
-          python3 -u build-system/Make/Make.py \
-            --bazelUserRoot="$BAZEL_USER_ROOT" \
-            build \
-            --configurationPath="build-system/appstore-configuration.json" \
+      - name: Run unsigned-safe translation tests
+        env:
+          GH_TOKEN: ""
+          GITHUB_TOKEN: ""
+        run: |
+          set -euo pipefail
+          ci_configuration="${RUNNER_TEMP}/swiftgram-ci-configuration.json"
+          jq '. + {sg_config: ""}' \
+            build-system/appstore-configuration.json > "${ci_configuration}"
+          chmod 600 "${ci_configuration}"
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            --bazelUserRoot="${RUNNER_TEMP}/bazel-root" \
+            --cacheDir="${RUNNER_TEMP}/bazel-cache" \
+            test \
+            --configurationPath="${ci_configuration}" \
             --codesigningInformationPath=build-system/fake-codesigning \
-            --configuration=release_arm64 \
-            --buildNumber="$BUILD_NUMBER"
+            --target=//Swiftgram/BonemanTranslation:BonemanTranslationTests
 
-          # collect ipa
-          OUTPUT_PATH="build/artifacts"
-          rm -rf "$OUTPUT_PATH"
-          mkdir -p "$OUTPUT_PATH"
-          for f in bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/Telegram.ipa; do
-            cp "$f" $OUTPUT_PATH/
-          done
+          test_log="bazel-testlogs/Swiftgram/BonemanTranslation/BonemanTranslationTests/test.log"
+          test -s "${test_log}"
+          python3 - "${test_log}" <<'PY'
+          import pathlib
+          import re
+          import sys
 
-          # collect dsym
-          mkdir -p build/DSYMs
-          for f in bazel-out/applebin_ios-ios_arm*-opt-ST-*/bin/Telegram/*.dSYM; do
-            cp -R "$f" build/DSYMs/
-          done
-          zip -r "./$OUTPUT_PATH/Telegram.DSYMs.zip" build/DSYMs 1>/dev/null
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: build-${{ env.BUILD_NUMBER }}
-          release_name: Telegram ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
-          body: |
-            An unsigned build of Telegram for iOS ${{ env.APP_VERSION }} (${{ env.BUILD_NUMBER }})
-          draft: false
-          prerelease: false
-
-      - name: Upload Release IPA
-        id: upload-release-ipa 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.ipa
-          asset_name: Telegram.ipa
-          asset_content_type: application/zip
-
-      - name: Upload Release DSYM
-        id: upload-release-dsym 
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: /Users/Shared/telegram-ios/build/artifacts/Telegram.DSYMs.zip
-          asset_name: Telegram.DSYMs.zip
-          asset_content_type: application/zip
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          expected_classes = {
+              "BonemanTranslationPolicyTests",
+              "BonemanTranslationCacheTests",
+              "BonemanTranslationBoundedIndexTests",
+              "BonemanTranslationWorkQueueTests",
+          }
+          missing = sorted(name for name in expected_classes if name not in text)
+          if missing:
+              raise SystemExit(f"Boneman Translation XCTest classes did not execute: {missing}")
+          matches = re.findall(
+              r"Executed\s+([1-9][0-9]*)\s+tests?,\s+with\s+0\s+failures(?:\s+\([0-9]+\s+unexpected\))?",
+              text,
+          )
+          if not matches:
+              raise SystemExit("Boneman Translation XCTest log has no zero-failure execution summary")
+          print(f"Boneman Translation XCTest execution confirmed: {matches[-1]} tests")
+          PY
