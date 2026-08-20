@@ -1005,16 +1005,27 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             guard let self, let context, let translationLang = self.translationLang else {
                 return
             }
-            // A whole chat can contain multiple source languages. Apple TranslationSession must
-            // auto-detect each visible message independently, so Apple work never fixes a source.
-            let fromLang = isAppleTranslationSelected(context: context) ? nil : translationLang.fromLang
-            self.translationDisposable.set(translateMessageIds(
+            let useAppleTranslation = isAppleTranslationSelected(context: context)
+            // The Apple service still detects each message locally, but keeps the chat-level source
+            // as a same-script fallback for short slang that NaturalLanguage misclassifies.
+            let fromLang = translationLang.fromLang
+            let translationSignal = translateMessageIds(
                 context: context,
                 messageIds: Array(messageIds.map(\.messageId)),
                 fromLang: fromLang,
                 toLang: translationLang.toLang,
                 viaText: !context.isPremium || SGSimpleSettings.shared.translationBackend == SGSimpleSettings.TranslationBackend.gtranslate.rawValue
-            ).start())
+            )
+            if useAppleTranslation {
+                // Each successful Apple result refreshes chat history. Replacing the active
+                // subscription on that refresh cancels the rest of the serial Apple batch and
+                // produces a partially translated viewport. Let the bounded Apple queue finish;
+                // disable and target-language changes still invalidate it through
+                // clearCachedMessageTranslations and its persistence generation.
+                let _ = translationSignal.startStandalone()
+            } else {
+                self.translationDisposable.set(translationSignal.start())
+            }
         }
         self.factCheckProcessingManager.process = { [weak context] messageIds in
             if let context {
@@ -2929,7 +2940,12 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                             guard message.author?.id != self.context.account.peerId else {
                                 continue
                             }
-                            if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == translateToLanguage {
+                            if message.attributes.contains(where: { attribute in
+                                guard let translation = attribute as? TranslationMessageAttribute else {
+                                    return false
+                                }
+                                return translation.toLang == translateToLanguage && translation.hasRenderableContent
+                            }) {
                                 continue
                             }
                             if useAppleTranslation {
@@ -2957,7 +2973,12 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                                 guard message.author?.id != self.context.account.peerId else {
                                     continue
                                 }
-                                if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == translateToLanguage {
+                                if message.attributes.contains(where: { attribute in
+                                    guard let translation = attribute as? TranslationMessageAttribute else {
+                                        return false
+                                    }
+                                    return translation.toLang == translateToLanguage && translation.hasRenderableContent
+                                }) {
                                     continue
                                 }
                                 if useAppleTranslation {

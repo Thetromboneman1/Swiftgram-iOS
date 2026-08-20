@@ -43,6 +43,7 @@ rg --quiet 'testCacheIsBoundedAndUsesRecentAccessForEviction' "${test_root}" \
     || fail "tests do not cover bounded cache eviction"
 
 core_file="submodules/TelegramCore/Sources/TelegramEngine/Messages/Translate.swift"
+translation_attribute_file="submodules/TelegramCore/Sources/SyncCore/SyncCore_TranslationMessageAttribute.swift"
 engine_file="submodules/TelegramCore/Sources/TelegramEngine/Messages/TelegramEngineMessages.swift"
 service_file="submodules/TranslateUI/Sources/Translate.swift"
 screen_file="submodules/TranslateUI/Sources/TranslateScreen.swift"
@@ -51,6 +52,7 @@ outgoing_file="submodules/TelegramUI/Sources/Chat/ChatMessageDisplaySendMessageO
 message_file="submodules/TelegramUI/Components/Chat/ChatMessageBubbleItemNode/Sources/ChatMessageBubbleItemNode.swift"
 controller_file="submodules/TelegramUI/Sources/ChatController.swift"
 display_node_file="submodules/TelegramUI/Sources/Chat/ChatControllerLoadDisplayNode.swift"
+translation_panel_file="submodules/TelegramUI/Components/TranslateHeaderPanelComponent/Sources/ChatTranslationPanelNode.swift"
 settings_file="Swiftgram/SGSettingsUI/Sources/SGSettingsController.swift"
 simple_settings_file="Swiftgram/SGSimpleSettings/Sources/SimpleSettings.swift"
 simple_settings_build="Swiftgram/SGSimpleSettings/BUILD"
@@ -59,6 +61,7 @@ translate_ui_build="submodules/TranslateUI/BUILD"
 
 integration_files=(
     "${core_file}"
+    "${translation_attribute_file}"
     "${engine_file}"
     "${service_file}"
     "${screen_file}"
@@ -67,6 +70,7 @@ integration_files=(
     "${message_file}"
     "${controller_file}"
     "${display_node_file}"
+    "${translation_panel_file}"
     "${settings_file}"
     "${simple_settings_file}"
     "${simple_settings_build}"
@@ -114,6 +118,33 @@ rg --quiet 'clearCachedMessageTranslations' "${display_node_file}" \
     || fail "whole-chat disable path does not clear local translated-message state"
 rg --quiet 'engineExperimentalInternalTranslationService[[:space:]]*=' "${display_node_file}" \
     || fail "Apple TranslationSession service is not installed into the chat host"
+rg --fixed-strings --quiet 'resolvedAppleTranslationLanguage(for: text, preferredLanguage: requestedSourceLanguage)' "${service_file}" \
+    || fail "whole-chat Apple translation does not detect a source language per message before model preparation"
+rg --quiet 'if isAppleTranslationSelected\(context:[[:space:]]*context\)' "${translation_panel_file}" \
+    || fail "translation provider attribution is not conditional on the selected backend"
+rg --quiet 'Translations use Apple Translation on device\.' "${translation_panel_file}" \
+    || fail "Apple whole-chat translation is missing on-device provider attribution"
+rg --quiet 'public var hasRenderableContent' "${translation_attribute_file}" \
+    || fail "translation attributes do not distinguish blank failures from renderable results"
+for retry_file in "${chat_file}" "submodules/TelegramUI/Sources/ChatHistoryListNode.swift"; do
+    rg --quiet 'translation\.hasRenderableContent' "${retry_file}" \
+        || fail "${retry_file} lets blank local translation attributes suppress retries"
+done
+rg --quiet 'if useAppleTranslation' "submodules/TelegramUI/Sources/ChatHistoryListNode.swift" \
+    || fail "whole-chat scheduling does not separate Apple batches from replaceable cloud requests"
+rg --quiet 'translationSignal\.startStandalone\(\)' "submodules/TelegramUI/Sources/ChatHistoryListNode.swift" \
+    || fail "Apple serial batches are cancelled by chat refreshes before every message completes"
+rg --quiet '\[BonemanTranslation\].*pair=' "${service_file}" \
+    || fail "Apple TranslationSession diagnostics are missing redacted language-pair evidence"
+if rg --line-number '\[BonemanTranslation\].*work\.key\.text' "${service_file}"; then
+    fail "Apple translation diagnostics must never log message text"
+fi
+rg --fixed-strings --quiet '[weak self, batch]' "${service_file}" \
+    || fail "Apple serial work does not retain its batch coordinator until results are persisted"
+rg --quiet 'resolvedAppleTranslationLanguage' "${service_file}" \
+    || fail "whole-chat Apple translation lacks chat-source fallback for misclassified Cyrillic slang"
+rg --fixed-strings --quiet '["bg", "kk"]' "${service_file}" \
+    || fail "observed Bulgarian and Kazakh misclassification fallback is missing"
 rg --quiet 'case[[:space:]]+system' "${simple_settings_file}" \
     || fail "Swiftgram settings do not expose the Apple system backend"
 rg --quiet 'value[[:space:]]*==[[:space:]]*\.system' "${settings_file}" \

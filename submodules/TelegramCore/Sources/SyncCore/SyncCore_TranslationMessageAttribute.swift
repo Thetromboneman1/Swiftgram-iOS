@@ -39,6 +39,13 @@ public class TranslationMessageAttribute: MessageAttribute, Equatable {
     /// `messages.translateRichMessage`). `text`/`entities` stay empty for those.
     public let instantPage: InstantPage?
 
+    /// Empty plain-text attributes can be left behind by an interrupted or failed local
+    /// translation. They must not suppress a later retry. Rich translations remain renderable
+    /// when their text is empty if they carry an instant page, additional fields, or poll data.
+    public var hasRenderableContent: Bool {
+        return !self.text.isEmpty || self.instantPage != nil || !self.additional.isEmpty || self.pollSolution != nil
+    }
+
     public var associatedPeerIds: [PeerId] {
         return []
     }

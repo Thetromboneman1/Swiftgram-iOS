@@ -178,7 +178,7 @@ private func presentAppleTranslationFailure(context: AccountContext) {
         let controller = textAlertController(
             context: context,
             title: "Apple Translation",
-            text: "This language pair is unavailable, or its on-device language pack is not installed. Download the pack when Apple prompts, then try again.",
+            text: "Apple Translation could not translate one or more messages. Unsupported or ambiguous messages will stay original while supported messages continue translating on device.",
             actions: [
                 TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})
             ]
@@ -196,7 +196,12 @@ public func translateMessageIds(context: AccountContext, messageIds: [EngineMess
             if let message = transaction.getMessage(messageId) {
                 if let replyAttribute = message.attributes.first(where: { $0 is ReplyMessageAttribute }) as? ReplyMessageAttribute, let replyMessage = message.associatedMessages[replyAttribute.messageId] {
                     if !replyMessage.text.isEmpty {
-                        if let translation = replyMessage.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == toLang {
+                        if replyMessage.attributes.contains(where: { attribute in
+                            guard let translation = attribute as? TranslationMessageAttribute else {
+                                return false
+                            }
+                            return translation.toLang == toLang && translation.hasRenderableContent
+                        }) {
                         } else {
                             if !messageIdsSet.contains(replyMessage.id) {
                                 messageIdsToTranslate.append(replyMessage.id)
@@ -210,7 +215,12 @@ public func translateMessageIds(context: AccountContext, messageIds: [EngineMess
                 guard forQuickTranslate || message.author?.id != context.account.peerId else {
                     continue
                 }
-                if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == toLang {
+                if message.attributes.contains(where: { attribute in
+                    guard let translation = attribute as? TranslationMessageAttribute else {
+                        return false
+                    }
+                    return translation.toLang == toLang && translation.hasRenderableContent
+                }) {
                     continue
                 }
                 

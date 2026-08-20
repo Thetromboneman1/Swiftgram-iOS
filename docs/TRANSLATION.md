@@ -23,7 +23,9 @@ Rich composer content, attachments, polls, audio, and other unsupported input st
 ## Language behavior
 
 - The target language is chosen by the user and remembered in local Swiftgram settings.
-- Source-language detection is left to Apple's session when a reliable explicit source is not available.
+- Whole-chat translation detects the source of each message locally, then gives Apple an explicit
+  source/target pair. This lets `TranslationSession` prepare or download the correct model while
+  preserving mixed-language chats.
 - BCP 47 language identifiers keep meaningful script and region subtags. For example, Simplified and Traditional Chinese remain distinct.
 - A same-language source and target is treated as a no-op.
 - Empty, whitespace-only, emoji-only, URL-only, email-only, poll, audio, and unsupported rich content is skipped.
@@ -60,6 +62,30 @@ flowchart TD
 ```
 
 One Apple session action handles one queued source text. Session configuration is not invalidated while its action is active. Duplicate requests share work, while each UI subscriber can cancel independently.
+
+## Provider attribution and failures
+
+The chat translation menu reports the provider selected for the current backend. Apple mode says
+that Translation runs on device and never links to Telegram's Cocoon information screen. The Cocoon
+attribution remains available only when a non-Apple backend is actually selected.
+
+Apple's `.supported` language status means the pair is available but its model may still need to be
+installed. Whole-chat work therefore detects the source before creating the session and calls
+`prepareTranslation()` for that explicit pair. iOS owns the language-model consent and download UI.
+
+Unsupported language pairs and Apple session failures are reported to the user. They are not stored
+as empty successful translations, and they never fall back to Telegram or another cloud translator.
+Blank local attributes left by an interrupted or older failed translation are not considered
+complete. Visible messages are retried and a successful Apple result replaces the stale attribute.
+Apple whole-chat batches are allowed to finish across the history refresh produced by each result.
+Disabling translation or changing its target still invalidates queued work before any stale result
+can be written.
+The serial queue retains its batch coordinator until every result has been handed back for local
+storage. For short Cyrillic slang that the local detector classifies as another Cyrillic language,
+the chat-level source is used as a fallback; messages in other scripts retain per-message detection.
+When the chat has no stored source hint, the observed Bulgarian/Kazakh classifications for short
+Cyrillic slang fall back to Russian. A failure in one ambiguous message does not imply that a model
+download is missing; the UI reports it as a partial-message failure while other results continue.
 
 ## Cache and local state
 
