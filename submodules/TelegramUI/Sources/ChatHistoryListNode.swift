@@ -598,6 +598,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
     private let unseenReactionsProcessingManager = ChatMessageThrottledProcessingManager(delay: 0.2, submitInterval: 0.0)
     private let extendedMediaProcessingManager = ChatMessageVisibleThrottledProcessingManager(interval: 5.0)
     private let translationProcessingManager = ChatMessageThrottledProcessingManager(submitInterval: 1.0)
+    private let translationDisposable = MetaDisposable()
     private let refreshStoriesProcessingManager = ChatMessageThrottledProcessingManager()
     private let factCheckProcessingManager = ChatMessageThrottledProcessingManager(submitInterval: 1.0)
     private let inlineGroupCallsProcessingManager = ChatMessageThrottledProcessingManager(submitInterval: 1.0)
@@ -1001,9 +1002,19 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             context?.account.viewTracker.refreshStoriesForMessageIds(messageIds: Set(messageIds.map(\.messageId)))
         }
         self.translationProcessingManager.process = { [weak self, weak context] messageIds in
-            if let context, let translationLang = self?.translationLang {
-                let _ = translateMessageIds(context: context, messageIds: Array(messageIds.map(\.messageId)), fromLang: translationLang.fromLang, toLang: translationLang.toLang, viaText: !context.isPremium || SGSimpleSettings.shared.translationBackend == SGSimpleSettings.TranslationBackend.gtranslate.rawValue).startStandalone()
+            guard let self, let context, let translationLang = self.translationLang else {
+                return
             }
+            // A whole chat can contain multiple source languages. Apple TranslationSession must
+            // auto-detect each visible message independently, so Apple work never fixes a source.
+            let fromLang = isAppleTranslationSelected(context: context) ? nil : translationLang.fromLang
+            self.translationDisposable.set(translateMessageIds(
+                context: context,
+                messageIds: Array(messageIds.map(\.messageId)),
+                fromLang: fromLang,
+                toLang: translationLang.toLang,
+                viaText: !context.isPremium || SGSimpleSettings.shared.translationBackend == SGSimpleSettings.TranslationBackend.gtranslate.rawValue
+            ).start())
         }
         self.factCheckProcessingManager.process = { [weak context] messageIds in
             if let context {
@@ -1298,6 +1309,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         self.genericReactionEffectDisposable?.dispose()
         self.adMessagesDisposable?.dispose()
         self.presentationDataDisposable?.dispose()
+        self.translationDisposable.dispose()
         self.messageReadMetricsTrackerPendingMetricTimer?.invalidate()
         self.messageReadMetricsTrackerDisposable?.dispose()
         self.messageReadMetricsTracker = nil
@@ -2331,11 +2343,19 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                 
                 var scrollAnimationCurve: ListViewAnimationCurve? = nil
                 if let strongSelf = self, case .default = source {
+                    let previousTranslationLang = strongSelf.translationLang
+                    let updatedTranslationLang: (fromLang: String?, toLang: String)?
                     if let translateToLanguage {
-                        strongSelf.translationLang = (fromLang: translateToLanguage.fromLang, toLang: translateToLanguage.toLang)
+                        updatedTranslationLang = (fromLang: translateToLanguage.fromLang, toLang: translateToLanguage.toLang)
                     } else {
-                        strongSelf.translationLang = nil
+                        updatedTranslationLang = nil
                     }
+                    if previousTranslationLang?.fromLang != updatedTranslationLang?.fromLang || previousTranslationLang?.toLang != updatedTranslationLang?.toLang {
+                        // Disposing reaches the local service's subscriber cancellation before any
+                        // subsequently scheduled Postbox transaction can write a stale result.
+                        strongSelf.translationDisposable.set(nil)
+                    }
+                    strongSelf.translationLang = updatedTranslationLang
                     if strongSelf.appliedScrollToMessageId == nil, let scrollToMessageId = scrollToMessageId {
                         updatedScrollPosition = .index(subject: MessageHistoryScrollToSubject(index: .message(scrollToMessageId), quote: nil), position: .center(.top), directionHint: .Up, animated: true, highlight: false, displayLink: true, setupReply: false)
                         scrollAnimationCurve = .Spring(duration: 0.4)
@@ -2879,6 +2899,7 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
         var topVisibleMessageRange: ChatTopVisibleMessageRange?
         let isLoading = historyView.originalView.isLoading
         let translateToLanguage = transactionState.historyView.associatedData.translateToLanguage
+        let useAppleTranslation = isAppleTranslationSelected(context: self.context)
         
         if let visible = displayedRange.visibleRange {
             let indexRange = (historyView.filteredEntries.count - 1 - visible.lastIndex, historyView.filteredEntries.count - 1 - visible.firstIndex)
@@ -2911,12 +2932,22 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                             if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == translateToLanguage {
                                 continue
                             }
-                            if !message.text.isEmpty || message.richText != nil {
+                            if useAppleTranslation {
+                                guard message.richText == nil,
+                                      !message.media.contains(where: { $0 is TelegramMediaPoll }),
+                                      !message.attributes.contains(where: { $0 is AudioTranscriptionMessageAttribute }),
+                                      shouldScheduleAppleTranslation(text: message.text, toLanguage: translateToLanguage) else {
+                                    continue
+                                }
                                 messageIdsToTranslate.append(message.id)
-                            } else if let _ = message.media.first(where: { $0 is TelegramMediaPoll }) {
-                                messageIdsToTranslate.append(message.id)
-                            } else if let audioTranscription = message.attributes.first(where: { $0 is AudioTranscriptionMessageAttribute }) as? AudioTranscriptionMessageAttribute, !audioTranscription.text.isEmpty && !audioTranscription.isPending {
-                                messageIdsToTranslate.append(message.id)
+                            } else {
+                                if !message.text.isEmpty || message.richText != nil {
+                                    messageIdsToTranslate.append(message.id)
+                                } else if let _ = message.media.first(where: { $0 is TelegramMediaPoll }) {
+                                    messageIdsToTranslate.append(message.id)
+                                } else if let audioTranscription = message.attributes.first(where: { $0 is AudioTranscriptionMessageAttribute }) as? AudioTranscriptionMessageAttribute, !audioTranscription.text.isEmpty && !audioTranscription.isPending {
+                                    messageIdsToTranslate.append(message.id)
+                                }
                             }
                         case let .MessageGroupEntry(_, messages, _):
                             for (message, _, _, _, _) in messages {
@@ -2929,7 +2960,15 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
                                 if let translation = message.attributes.first(where: { $0 is TranslationMessageAttribute }) as? TranslationMessageAttribute, translation.toLang == translateToLanguage {
                                     continue
                                 }
-                                if !message.text.isEmpty || message.richText != nil {
+                                if useAppleTranslation {
+                                    guard message.richText == nil,
+                                          !message.media.contains(where: { $0 is TelegramMediaPoll }),
+                                          !message.attributes.contains(where: { $0 is AudioTranscriptionMessageAttribute }),
+                                          shouldScheduleAppleTranslation(text: message.text, toLanguage: translateToLanguage) else {
+                                        continue
+                                    }
+                                    messageIdsToTranslate.append(message.id)
+                                } else if !message.text.isEmpty || message.richText != nil {
                                     messageIdsToTranslate.append(message.id)
                                 }
                             }

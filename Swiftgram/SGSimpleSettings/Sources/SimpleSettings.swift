@@ -1,4 +1,5 @@
 import Foundation
+import BonemanTranslation
 import SGAppGroupIdentifier
 import SGLogging
 
@@ -110,6 +111,7 @@ public class SGSimpleSettings {
         case disableSwipeToRecordStory
         case quickTranslateButton
         case outgoingLanguageTranslation
+        case preferredTranslationLanguage
         case hideReactions
         case showRepostToStory
         case showRepostToStoryV2
@@ -270,6 +272,7 @@ public class SGSimpleSettings {
         Keys.disableSwipeToRecordStory.rawValue: false,
         Keys.quickTranslateButton.rawValue: false,
         Keys.outgoingLanguageTranslation.rawValue: [:],
+        Keys.preferredTranslationLanguage.rawValue: "",
         Keys.hideReactions.rawValue: false,
         Keys.showRepostToStory.rawValue: true,
         Keys.contextShowSelectFromUser.rawValue: true,
@@ -401,6 +404,9 @@ public class SGSimpleSettings {
     public var quickTranslateButton: Bool
     
     public var outgoingLanguageTranslation = UserDefaultsBackedDictionary<String, String>(userDefaultsKey: Keys.outgoingLanguageTranslation.rawValue, threadSafe: false)
+
+    @UserDefault(key: Keys.preferredTranslationLanguage.rawValue)
+    public var preferredTranslationLanguage: String
     
     @UserDefault(key: Keys.hideReactions.rawValue)
     public var hideReactions: Bool
@@ -611,7 +617,21 @@ extension SGSimpleSettings {
 
 extension SGSimpleSettings {
     public var translationBackendEnum: SGSimpleSettings.TranslationBackend {
-        return TranslationBackend(rawValue: translationBackend) ?? .default
+        let appleSystemAvailable: Bool
+        #if os(iOS)
+        if #available(iOS 18.0, *) {
+            appleSystemAvailable = true
+        } else {
+            appleSystemAvailable = false
+        }
+        #else
+        appleSystemAvailable = false
+        #endif
+        let effectiveValue = BonemanTranslationPolicy.effectiveBackend(
+            rawValue: self.translationBackend,
+            appleSystemAvailable: appleSystemAvailable
+        )
+        return TranslationBackend(rawValue: effectiveValue) ?? .default
     }
     
     public var transcriptionBackendEnum: SGSimpleSettings.TranscriptionBackend {

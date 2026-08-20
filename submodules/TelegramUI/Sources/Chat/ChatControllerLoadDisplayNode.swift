@@ -685,7 +685,10 @@ extension ChatControllerImpl {
         
         if #available(iOS 18.0, *) {
             if engineExperimentalInternalTranslationService == nil, let hostView = self.context.sharedContext.mainWindow?.hostView {
-                let translationService = ExperimentalInternalTranslationServiceImpl(view: hostView.containerView)
+                let translationService = ExperimentalInternalTranslationServiceImpl(
+                    view: hostView.containerView,
+                    parentViewController: self.context.sharedContext.mainWindow?.viewController as? UIViewController
+                )
                 engineExperimentalInternalTranslationService = translationService
             }
         }
@@ -4400,9 +4403,14 @@ extension ChatControllerImpl {
             guard let self, let peerId = self.chatLocation.peerId else {
                 return
             }
-            let _ = (updateChatTranslationStateInteractively(engine: self.context.engine, peerId: peerId, threadId: self.chatLocation.threadId,  { current in
+            var signal = updateChatTranslationStateInteractively(engine: self.context.engine, peerId: peerId, threadId: self.chatLocation.threadId,  { current in
                 return current?.withIsEnabled(type == .translated)
             })
+            if type == .original {
+                signal = signal
+                |> then(self.context.engine.messages.clearCachedMessageTranslations(peerId: peerId, threadId: self.chatLocation.threadId))
+            }
+            let _ = (signal
             |> deliverOnMainQueue).startStandalone(completed: { [weak self] in
                 if let self, type == .translated {
                     Queue.mainQueue().after(0.15) {
@@ -4415,9 +4423,12 @@ extension ChatControllerImpl {
                 return
             }
             let langCode = normalizeTranslationLanguage(langCode)
-            let _ = updateChatTranslationStateInteractively(engine: self.context.engine, peerId: peerId, threadId: self.chatLocation.threadId, { current in
+            let clearSignal = self.context.engine.messages.clearCachedMessageTranslations(peerId: peerId, threadId: self.chatLocation.threadId)
+            let updateSignal = updateChatTranslationStateInteractively(engine: self.context.engine, peerId: peerId, threadId: self.chatLocation.threadId, { current in
                 return current?.withToLang(langCode).withIsEnabled(true)
-            }).startStandalone()
+            })
+            let _ = (clearSignal
+            |> then(updateSignal)).startStandalone()
         }, addDoNotTranslateLanguage: { [weak self] langCode in
             guard let self, let peerId = self.chatLocation.peerId else {
                 return
@@ -4704,17 +4715,11 @@ extension ChatControllerImpl {
             let (_, language) = canTranslateText(context: context, text: text.string, showTranslate: true, ignoredLanguages: nil)
 
             let entities = generateChatInputTextEntities(text)
-
-            let translationConfiguration = TranslationConfiguration.with(appConfiguration: self.context.currentAppConfiguration.with { $0 })
-            var useSystemTranslation = false
-            switch translationConfiguration.manual {
-            case .system:
-                if #available(iOS 18.0, *) {
-                    useSystemTranslation = true
-                }
-            default:
-                break
+            guard !text.string.isEmpty, entities.isEmpty else {
+                return
             }
+
+            let useSystemTranslation = isAppleTranslationSelected(context: self.context)
 
             if useSystemTranslation {
                 presentTranslateScreen(

@@ -1,3 +1,5 @@
+import BonemanTranslation
+import SGSimpleSettings
 import Foundation
 import UIKit
 import Display
@@ -13,7 +15,7 @@ import Combine
 private final class LinkHelperClass: NSObject {
 }
 
-public var supportedTranslationLanguages = [
+public let supportedTranslationLanguages = [
     "af",
     "sq",
     "am",
@@ -124,7 +126,7 @@ public var supportedTranslationLanguages = [
     "zu"
 ]
 
-public var popularTranslationLanguages = [
+public let popularTranslationLanguages = [
     "en",
     "ar",
     "zh",
@@ -151,9 +153,9 @@ public func effectiveIgnoredTranslationLanguages(context: AccountContext, ignore
     
     var dontTranslateLanguages = Set<String>()
     if let ignoredLanguages = ignoredLanguages {
-        dontTranslateLanguages = Set(ignoredLanguages)
+        dontTranslateLanguages = Set(ignoredLanguages.map(normalizeTranslationLanguage))
     } else {
-        dontTranslateLanguages.insert(baseLang)
+        dontTranslateLanguages.insert(normalizeTranslationLanguage(baseLang))
         for language in systemLanguageCodes() {
             dontTranslateLanguages.insert(language)
         }
@@ -162,35 +164,81 @@ public func effectiveIgnoredTranslationLanguages(context: AccountContext, ignore
 }
 
 public func normalizeTranslationLanguage(_ code: String) -> String {
-    var code = code
-    if code.contains("-") {
-        code = code.components(separatedBy: "-").first ?? code
+    return BonemanTranslationPolicy.canonicalLanguageIdentifier(code)
+}
+
+private func detectedAppleTranslationLanguage(for text: String) -> String? {
+    guard #available(iOS 12.0, *) else {
+        return nil
     }
-    if code == "nb" {
-        code = "no"
+    let recognizer = NLLanguageRecognizer()
+    recognizer.processString(String(text.prefix(256)))
+    let hypotheses = recognizer.languageHypotheses(withMaximum: 3)
+    return hypotheses
+        .filter { $0.key != .undetermined }
+        .sorted(by: { $0.value > $1.value })
+        .first
+        .map { normalizeTranslationLanguage($0.key.rawValue) }
+}
+
+public func shouldScheduleAppleTranslation(text: String, toLanguage: String) -> Bool {
+    let sourceLanguage = detectedAppleTranslationLanguage(for: text)
+    return BonemanTranslationPolicy.shouldTranslate(
+        text: text,
+        fromLanguage: sourceLanguage,
+        toLanguage: normalizeTranslationLanguage(toLanguage)
+    )
+}
+
+public func isAppleTranslationSelected(context: AccountContext) -> Bool {
+    switch SGSimpleSettings.shared.translationBackendEnum {
+    case .system:
+        return true
+    case .gtranslate:
+        return false
+    case .default:
+        let translationConfiguration = TranslationConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
+        switch (translationConfiguration.manual, translationConfiguration.auto) {
+        case (.system, _), (_, .system):
+            return true
+        default:
+            return false
+        }
     }
-    return code
+}
+
+public func canUseAppleTranslation(context: AccountContext) -> Bool {
+    guard isAppleTranslationSelected(context: context) else {
+        return false
+    }
+    // The Boneman privacy contract uses TranslationSession only, which requires iOS 18 or later.
+    if #available(iOS 18.0, *) {
+        return true
+    } else {
+        return false
+    }
+}
+
+public func canUseAppleChatTranslation(context: AccountContext) -> Bool {
+    guard isAppleTranslationSelected(context: context) else {
+        return false
+    }
+    if #available(iOS 18.0, *) {
+        return true
+    } else {
+        return false
+    }
 }
 
 public func canTranslateChats(context: AccountContext) -> Bool {
-    let translationConfiguration = TranslationConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
-    var chatTranslationAvailable = true
-    switch translationConfiguration.auto {
-    case .system:
-        if #available(iOS 18.0, *) {
-        } else {
-            chatTranslationAvailable = false
-        }
-    case .alternative, .disabled:
-        chatTranslationAvailable = false
-    default:
-        break
+    if isAppleTranslationSelected(context: context) {
+        return canUseAppleChatTranslation(context: context)
     }
-    return chatTranslationAvailable || true // MARK: Swiftgram
+    return true
 }
 
 public func canTranslateText(context: AccountContext, text: String, showTranslate: Bool, showTranslateIfTopical: Bool = false, ignoredLanguages: [String]?) -> (canTranslate: Bool, language: String?) {
-    guard showTranslate || showTranslateIfTopical, text.count > 0 else {
+    guard showTranslate || showTranslateIfTopical, BonemanTranslationPolicy.shouldTranslate(text: text, fromLanguage: nil, toLanguage: "und") else {
         return (false, nil)
     }
 
@@ -200,13 +248,15 @@ public func canTranslateText(context: AccountContext, text: String, showTranslat
     case .enabled, .alternative:
         translateButtonAvailable = true
     case .system:
-        if #available(iOS 18.0, *) {
-            translateButtonAvailable = true
-        }
+        translateButtonAvailable = canUseAppleTranslation(context: context)
     default:
         break
     }
-    translateButtonAvailable = true // MARK: Swiftgram
+    if isAppleTranslationSelected(context: context) {
+        translateButtonAvailable = canUseAppleTranslation(context: context)
+    } else {
+        translateButtonAvailable = true
+    }
     let showTranslate = showTranslate && translateButtonAvailable
         
     if #available(iOS 12.0, *) {
@@ -217,16 +267,22 @@ public func canTranslateText(context: AccountContext, text: String, showTranslat
         let dontTranslateLanguages = effectiveIgnoredTranslationLanguages(context: context, ignoredLanguages: ignoredLanguages)
         
         let text = String(text.prefix(64))
-        languageRecognizer.processString(text)
-        let hypotheses = languageRecognizer.languageHypotheses(withMaximum: 3)
-        languageRecognizer.reset()
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        let hypotheses = recognizer.languageHypotheses(withMaximum: 3)
         
         var supportedTranslationLanguages = supportedTranslationLanguages
         if !showTranslate && showTranslateIfTopical {
             supportedTranslationLanguages = ["uk", "ru"]
         }
                 
-        let filteredLanguages = hypotheses.filter { supportedTranslationLanguages.contains(normalizeTranslationLanguage($0.key.rawValue)) }.sorted(by: { $0.value > $1.value })
+        let filteredLanguages = hypotheses.filter {
+            if isAppleTranslationSelected(context: context) {
+                return $0.key != .undetermined
+            } else {
+                return supportedTranslationLanguages.contains(normalizeTranslationLanguage($0.key.rawValue))
+            }
+        }.sorted(by: { $0.value > $1.value })
         if let language = filteredLanguages.first {
             let languageCode = normalizeTranslationLanguage(language.key.rawValue)
             return (!dontTranslateLanguages.contains(languageCode), languageCode)
@@ -241,8 +297,7 @@ public func canTranslateText(context: AccountContext, text: String, showTranslat
 public func systemLanguageCodes() -> [String] {
     var languages: [String] = []
     for language in Locale.preferredLanguages.prefix(2) {
-        let language = language.components(separatedBy: "-").first ?? language
-        languages.append(language)
+        languages.append(normalizeTranslationLanguage(language))
     }
     if languages.count == 2 && languages != ["en", "ru"] {
         languages = Array(languages.prefix(1))
@@ -252,96 +307,117 @@ public func systemLanguageCodes() -> [String] {
 
 @available(iOS 13.0, *)
 class ExternalTranslationTrigger: ObservableObject {
-    @Published var shouldInvalidate: Int = 0
+    @Published var generation: Int = 0
 }
 
 @available(iOS 18.0, *)
 private struct TranslationViewImpl: View {
     @State private var configuration: TranslationSession.Configuration?
     @ObservedObject var externalCondition: ExternalTranslationTrigger
-    private let taskContainer: Atomic<ExperimentalInternalTranslationServiceImpl.TranslationTaskContainer>
+    private let workQueue: BonemanTranslationWorkQueue
     
-    init(externalCondition: ExternalTranslationTrigger, taskContainer: Atomic<ExperimentalInternalTranslationServiceImpl.TranslationTaskContainer>) {
+    init(externalCondition: ExternalTranslationTrigger, workQueue: BonemanTranslationWorkQueue) {
         self.externalCondition = externalCondition
-        self.taskContainer = taskContainer
+        self.workQueue = workQueue
+    }
+
+    private func updateConfigurationForActiveWork() {
+        guard let work = self.workQueue.activeWork else {
+            return
+        }
+        let sourceLanguage = work.key.sourceLanguage
+        let targetLanguage = work.key.targetLanguage
+        let requestedSource = sourceLanguage.map { Locale.Language(identifier: $0) }
+        let requestedTarget = Locale.Language(identifier: targetLanguage)
+        if self.configuration != nil,
+           self.configuration?.source == requestedSource,
+           self.configuration?.target == requestedTarget {
+            // This is reached only after the previous translationTask action returned. Invalidating
+            // while that action is active can make Apple fatal-error the process.
+            self.configuration?.invalidate()
+        } else {
+            self.configuration = .init(
+                source: requestedSource,
+                target: requestedTarget
+            )
+        }
+    }
+
+    private func complete(work: BonemanTranslationWork, result: BonemanTranslationWorkResult) {
+        guard self.workQueue.completeActive(workId: work.id, result: result) else {
+            return
+        }
+        // Defer the next configuration mutation until this translationTask action has returned.
+        Queue.mainQueue().async {
+            if self.workQueue.beginNextIfIdle() != nil {
+                self.externalCondition.generation &+= 1
+            }
+        }
     }
     
     var body: some View {
         Text("ABC")
-        .onChange(of: self.externalCondition.shouldInvalidate) { _ in
-            let firstTaskLanguagePair = self.taskContainer.with { taskContainer -> (String, String)? in
-                if let firstTask = taskContainer.tasks.first {
-                    return (firstTask.fromLang, firstTask.toLang)
-                } else {
-                    return nil
-                }
-            }
-            
-            if let firstTaskLanguagePair {
-                if let configuration = self.configuration, configuration.source?.languageCode?.identifier == firstTaskLanguagePair.0, configuration.target?.languageCode?.identifier == firstTaskLanguagePair.1 {
-                    self.configuration?.invalidate()
-                } else {
-                    self.configuration = .init(
-                        source: Locale.Language(identifier: firstTaskLanguagePair.0),
-                        target: Locale.Language(identifier: firstTaskLanguagePair.1)
-                    )
-                }
-            }
+        .onAppear {
+            self.updateConfigurationForActiveWork()
+        }
+        .onChange(of: self.externalCondition.generation) { _, _ in
+            self.updateConfigurationForActiveWork()
         }
         .translationTask(self.configuration, action: { session in
-            var task: ExperimentalInternalTranslationServiceImpl.TranslationTask?
-            task = self.taskContainer.with { taskContainer -> ExperimentalInternalTranslationServiceImpl.TranslationTask? in
-                if !taskContainer.tasks.isEmpty {
-                    return taskContainer.tasks.removeFirst()
-                } else {
-                    return nil
-                }
-            }
-            
-            guard let task else {
+            guard let work = self.workQueue.activeWork else {
                 return
             }
             
             do {
-                var nextClientIdentifier: Int = 0
-                var clientIdentifierMap: [String: AnyHashable] = [:]
-                let translationRequests = task.texts.map { key, value in
-                    let id = nextClientIdentifier
-                    nextClientIdentifier += 1
-                    clientIdentifierMap["\(id)"] = key
-                    return TranslationSession.Request(sourceText: value, clientIdentifier: "\(id)")
-                }
-                
-                let responses = try await session.translations(from: translationRequests)
-                var resultMap: [AnyHashable: String] = [:]
-                for response in responses {
-                    if let clientIdentifier = response.clientIdentifier, let originalKey = clientIdentifierMap[clientIdentifier] {
-                        resultMap[originalKey] = "\(response.targetText)"
-                    }
-                }
-                
-                task.completion(resultMap)
-            } catch let e {
-                print("Translation error: \(e)")
-                task.completion(nil)
-            }
-            
-            let firstTaskLanguagePair = self.taskContainer.with { taskContainer -> (String, String)? in
-                if let firstTask = taskContainer.tasks.first {
-                    return (firstTask.fromLang, firstTask.toLang)
-                } else {
-                    return nil
-                }
-            }
-            
-            if let firstTaskLanguagePair {
-                if let configuration = self.configuration, configuration.source?.languageCode?.identifier == firstTaskLanguagePair.0, configuration.target?.languageCode?.identifier == firstTaskLanguagePair.1 {
-                    self.configuration?.invalidate()
-                } else {
-                    self.configuration = .init(
-                        source: Locale.Language(identifier: firstTaskLanguagePair.0),
-                        target: Locale.Language(identifier: firstTaskLanguagePair.1)
+                let targetLanguage = Locale.Language(identifier: work.key.targetLanguage)
+                let languageAvailability = LanguageAvailability()
+                let status: LanguageAvailability.Status
+                if let sourceLanguage = work.key.sourceLanguage {
+                    status = await languageAvailability.status(
+                        from: Locale.Language(identifier: sourceLanguage),
+                        to: targetLanguage
                     )
+                } else {
+                    status = try await languageAvailability.status(for: work.key.text, to: targetLanguage)
+                }
+                switch status {
+                case .unsupported:
+                    self.complete(work: work, result: .skipped)
+                    return
+                case .supported:
+                    // Apple owns the language-resource consent and download UI. Message content
+                    // remains in TranslationSession and is not sent to a translation service.
+                    // prepareTranslation requires an explicit source language. A nil-source
+                    // session must proceed through translate(), where Apple performs detection
+                    // and owns any language-resource prompt.
+                    if work.key.sourceLanguage != nil {
+                        try await session.prepareTranslation()
+                    }
+                case .installed:
+                    break
+                @unknown default:
+                    self.complete(work: work, result: .failed)
+                    return
+                }
+
+                // Exactly one source text enters each task. This keeps mixed-language chats safe and
+                // lets a nil-source session auto-detect each visible message independently.
+                let response = try await session.translate(work.key.text)
+                let translatedText = response.targetText
+                if translatedText.isEmpty || translatedText == work.key.text {
+                    self.complete(work: work, result: .skipped)
+                } else {
+                    self.complete(work: work, result: .translated(translatedText))
+                }
+            } catch {
+                if Translation.TranslationError.unsupportedSourceLanguage ~= error
+                    || Translation.TranslationError.unsupportedTargetLanguage ~= error
+                    || Translation.TranslationError.unsupportedLanguagePairing ~= error
+                    || Translation.TranslationError.unableToIdentifyLanguage ~= error
+                    || Translation.TranslationError.nothingToTranslate ~= error {
+                    self.complete(work: work, result: .skipped)
+                } else {
+                    self.complete(work: work, result: .failed)
                 }
             }
         })
@@ -350,70 +426,168 @@ private struct TranslationViewImpl: View {
 
 @available(iOS 18.0, *)
 public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInternalTranslationService {
-    fileprivate final class TranslationTask {
-        let id: Int
-        let texts: [AnyHashable: String]
-        let fromLang: String
-        let toLang: String
-        let completion: ([AnyHashable: String]?) -> Void
-        
-        init(id: Int, texts: [AnyHashable: String], fromLang: String, toLang: String, completion: @escaping ([AnyHashable: String]?) -> Void) {
-            self.id = id
-            self.texts = texts
-            self.fromLang = fromLang
-            self.toLang = toLang
+    private final class TranslationBatch {
+        let subscriberId: Int
+        private let inputKeysByCacheKey: [BonemanTranslationCacheKey: [AnyHashable]]
+        private var remainingKeys: Set<BonemanTranslationCacheKey>
+        private var results: [AnyHashable: String]
+        private var failed = false
+        private var cancelled = false
+        private var completion: (([AnyHashable: String]?) -> Void)?
+
+        init(
+            subscriberId: Int,
+            inputKeysByCacheKey: [BonemanTranslationCacheKey: [AnyHashable]],
+            cachedResults: [AnyHashable: String],
+            completion: @escaping ([AnyHashable: String]?) -> Void
+        ) {
+            self.subscriberId = subscriberId
+            self.inputKeysByCacheKey = inputKeysByCacheKey
+            self.remainingKeys = Set(inputKeysByCacheKey.keys)
+            self.results = cachedResults
             self.completion = completion
         }
-    }
-    
-    fileprivate final class TranslationTaskContainer {
-        var tasks: [TranslationTask] = []
-        
-        init() {
+
+        func resolve(key: BonemanTranslationCacheKey, result: BonemanTranslationWorkResult) {
+            guard !self.cancelled, self.remainingKeys.remove(key) != nil else {
+                return
+            }
+            switch result {
+            case let .translated(text):
+                for inputKey in self.inputKeysByCacheKey[key] ?? [] {
+                    self.results[inputKey] = text
+                }
+            case .skipped:
+                // Empty text is an internal terminal marker. TelegramCore stores an empty local
+                // translation attribute so unsupported/no-op visible messages are not rescheduled.
+                for inputKey in self.inputKeysByCacheKey[key] ?? [] {
+                    self.results[inputKey] = ""
+                }
+            case .failed:
+                self.failed = true
+            }
+
+            if self.remainingKeys.isEmpty {
+                let completion = self.completion
+                self.completion = nil
+                completion?(self.failed && self.results.isEmpty ? nil : self.results)
+            }
+        }
+
+        func cancel() {
+            self.cancelled = true
+            self.completion = nil
         }
     }
     
-    private final class Impl {
+    private final class Impl: NSObject {
         private let hostingController: UIViewController
-        
-        private let taskContainer = Atomic(value: TranslationTaskContainer())
+        private let cache = BonemanTranslationCache(capacity: 256)
+        private let workQueue = BonemanTranslationWorkQueue(capacity: 128)
         private let taskTrigger = ExternalTranslationTrigger()
+        private var nextSubscriberId: Int = 0
         
-        private var nextId: Int = 0
-        
-        init(view: UIView) {
+        init(view: UIView, parentViewController: UIViewController?) {
             self.hostingController = UIHostingController(rootView: TranslationViewImpl(
                 externalCondition: self.taskTrigger,
-                taskContainer: self.taskContainer
+                workQueue: self.workQueue
             ))
-            
+
+            super.init()
+
+            self.hostingController.view.frame = .zero
+            self.hostingController.view.backgroundColor = .clear
+            self.hostingController.view.isUserInteractionEnabled = false
+            self.hostingController.view.accessibilityElementsHidden = true
+            parentViewController?.addChild(self.hostingController)
             view.addSubview(self.hostingController.view)
+            self.hostingController.didMove(toParent: parentViewController)
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(self.clearCacheForMemoryWarning),
+                name: UIApplication.didReceiveMemoryWarningNotification,
+                object: nil
+            )
+
+        }
+
+        deinit {
+            NotificationCenter.default.removeObserver(self)
+            self.hostingController.willMove(toParent: nil)
+            self.hostingController.view.removeFromSuperview()
+            self.hostingController.removeFromParent()
+        }
+
+        @objc private func clearCacheForMemoryWarning() {
+            self.cache.removeAll()
+        }
+
+        func clearCache() {
+            self.workQueue.cancelAll()
+            self.cache.removeAll()
         }
         
-        func translate(texts: [AnyHashable: String], fromLang: String, toLang: String, onResult: @escaping ([AnyHashable: String]?) -> Void) -> Disposable {
-            let id = self.nextId
-            self.nextId += 1
-            self.taskContainer.with { taskContainer in
-                taskContainer.tasks.append(TranslationTask(
-                    id: id,
-                    texts: texts,
-                    fromLang: fromLang,
-                    toLang: toLang,
-                    completion: { result in
-                        onResult(result)
-                    }
-                ))
+        func translate(texts: [AnyHashable: String], fromLang: String?, toLang: String, onResult: @escaping ([AnyHashable: String]?) -> Void) -> Disposable {
+            let sourceLanguage = fromLang.flatMap { value -> String? in
+                return value.isEmpty ? nil : normalizeTranslationLanguage(value)
             }
-            self.taskTrigger.shouldInvalidate += 1
-            
-            return ActionDisposable { [weak self] in
-                Queue.mainQueue().async {
-                    guard let self else {
+            let targetLanguage = normalizeTranslationLanguage(toLang)
+            var cachedResults: [AnyHashable: String] = [:]
+            var inputKeysByCacheKey: [BonemanTranslationCacheKey: [AnyHashable]] = [:]
+            for (key, text) in texts {
+                guard BonemanTranslationPolicy.shouldTranslate(text: text, fromLanguage: sourceLanguage, toLanguage: targetLanguage) else {
+                    cachedResults[key] = ""
+                    continue
+                }
+                let cacheKey = BonemanTranslationCacheKey(text: text, sourceLanguage: sourceLanguage, targetLanguage: targetLanguage)
+                if let cachedResult = self.cache.value(for: cacheKey) {
+                    cachedResults[key] = cachedResult
+                } else {
+                    inputKeysByCacheKey[cacheKey, default: []].append(key)
+                }
+            }
+
+            guard !inputKeysByCacheKey.isEmpty else {
+                onResult(cachedResults)
+                return ActionDisposable {
+                }
+            }
+
+            let subscriberId = self.nextSubscriberId
+            self.nextSubscriberId &+= 1
+            let batch = TranslationBatch(
+                subscriberId: subscriberId,
+                inputKeysByCacheKey: inputKeysByCacheKey,
+                cachedResults: cachedResults,
+                completion: onResult
+            )
+            for cacheKey in inputKeysByCacheKey.keys {
+                let accepted = self.workQueue.enqueue(key: cacheKey, subscriberId: subscriberId, completion: { [weak self, weak batch] result in
+                    guard let batch else {
                         return
                     }
-                    self.taskContainer.with { taskContainer in
-                        taskContainer.tasks.removeAll(where: { $0.id == id })
+                    switch result {
+                    case let .translated(text):
+                        self?.cache.insert(text, for: cacheKey)
+                    case .skipped:
+                        self?.cache.insert("", for: cacheKey)
+                    case .failed:
+                        break
                     }
+                    batch.resolve(key: cacheKey, result: result)
+                })
+                if !accepted {
+                    batch.resolve(key: cacheKey, result: .failed)
+                }
+            }
+            if self.workQueue.beginNextIfIdle() != nil {
+                self.taskTrigger.generation &+= 1
+            }
+
+            return ActionDisposable { [weak self, weak batch] in
+                Queue.mainQueue().async {
+                    batch?.cancel()
+                    self?.workQueue.cancel(subscriberId: subscriberId)
                 }
             }
         }
@@ -421,19 +595,38 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
     
     private let impl: QueueLocalObject<Impl>
     
-    public init(view: UIView) {
+    public init(view: UIView, parentViewController: UIViewController? = nil) {
         self.impl = QueueLocalObject(queue: .mainQueue(), generate: {
-            return Impl(view: view)
+            return Impl(view: view, parentViewController: parentViewController)
         })
     }
     
-    public func translate(texts: [AnyHashable: String], fromLang: String, toLang: String) -> Signal<[AnyHashable: String]?, NoError> {
+    public func translate(texts: [AnyHashable: String], fromLang: String?, toLang: String) -> Signal<[AnyHashable: String]?, NoError> {
         return self.impl.signalWith { impl, subscriber in
             return impl.translate(texts: texts, fromLang: fromLang, toLang: toLang, onResult: { result in
                 subscriber.putNext(result)
                 subscriber.putCompletion()
             })
         }
+    }
+
+    public func clearCache() {
+        self.impl.with { impl in
+            impl.clearCache()
+        }
+    }
+}
+
+public func translateTextWithApple(text: String, fromLanguage: String?, toLanguage: String) -> Signal<String?, NoError> {
+    guard #available(iOS 18.0, *), let service = engineExperimentalInternalTranslationService else {
+        return .single(nil)
+    }
+    return service.translate(texts: [AnyHashable(0): text], fromLang: fromLanguage, toLang: toLanguage)
+    |> map { result in
+        guard let translatedText = result?[AnyHashable(0)], !translatedText.isEmpty else {
+            return nil
+        }
+        return translatedText
     }
 }
 

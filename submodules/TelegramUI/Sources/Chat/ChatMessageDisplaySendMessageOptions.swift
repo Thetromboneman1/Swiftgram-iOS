@@ -36,6 +36,16 @@ private func makeRichTextSendPreview(context: AccountContext, content: ChatInput
     return ChatSendMessageRichTextPreview(context: context, instantPage: instantPage(from: content))
 }
 
+private func isPlainOutgoingTranslationContent(_ content: ChatInputContent) -> Bool {
+    guard content.blocks.count == 1, case let .paragraph(paragraph) = content.blocks[0] else {
+        return false
+    }
+    guard paragraph.style == .body, paragraph.list == nil else {
+        return false
+    }
+    return paragraph.runs.allSatisfy { $0.attributes == ChatInputInlineAttributes() }
+}
+
 func chatMessageDisplaySendMessageOptions(selfController: ChatControllerImpl, node: ASDisplayNode, gesture: ContextGesture) {
     guard let peerId = selfController.chatLocation.peerId, let textInputView = selfController.chatDisplayNode.textInputView(), let layout = selfController.validLayout else {
         return
@@ -105,18 +115,56 @@ func chatMessageDisplaySendMessageOptions(selfController: ChatControllerImpl, no
                 
         let sgTranslationContext: (outgoingMessageTranslateToLang: String?, translate: (() -> Void)?, changeTranslationLanguage: (() -> ())?) = (outgoingMessageTranslateToLang: outgoingMessageTranslateToLang, translate: { [weak selfController] in
             guard let selfController else { return }
-            let textToTranslate = selfController.presentationInterfaceState.interfaceState.effectiveInputState.inputText.string
-            let textEntities = selfController.presentationInterfaceState.interfaceState.synchronizeableInputState?.entities ?? []
+            let sourceInterfaceState = selfController.presentationInterfaceState.interfaceState
+            let sourceInputContent = sourceInterfaceState.effectiveInputState.content
+            let sourceInputText = NSAttributedString(attributedString: sourceInterfaceState.effectiveInputState.inputText)
+            let textToTranslate = sourceInputText.string
+            let textEntities = sourceInterfaceState.synchronizeableInputState?.entities ?? []
+            guard !textToTranslate.isEmpty, textEntities.isEmpty, isPlainOutgoingTranslationContent(sourceInputContent) else {
+                return
+            }
             if let outgoingMessageTranslateToLang = outgoingMessageTranslateToLang {
-                let _ = (selfController.context.engine.messages.translate(text: textToTranslate, toLang: outgoingMessageTranslateToLang, entities: textEntities) |> deliverOnMainQueue).start(next: { [weak selfController] translatedTextAndEntities in
-                    guard let selfController, let translatedTextAndEntities else { return }
-                    let newInputText = chatInputStateStringWithAppliedEntities(translatedTextAndEntities.0, entities: translatedTextAndEntities.1)
+                let applyTranslation: (String, [MessageTextEntity]) -> Void = { [weak selfController] translatedText, translatedEntities in
+                    guard let selfController else {
+                        return
+                    }
+                    let currentInterfaceState = selfController.presentationInterfaceState.interfaceState
+                    guard currentInterfaceState.effectiveInputState.content == sourceInputContent else {
+                        return
+                    }
+                    guard currentInterfaceState.effectiveInputState.inputText.isEqual(to: sourceInputText) else {
+                        return
+                    }
+                    guard (currentInterfaceState.synchronizeableInputState?.entities ?? []).isEmpty else {
+                        return
+                    }
+                    let newInputText = chatInputStateStringWithAppliedEntities(translatedText, entities: translatedEntities)
                     let newTextInputState = ChatTextInputState(inputText: newInputText, selectionRange: 0 ..< newInputText.length)
                     selfController.updateChatPresentationInterfaceState(interactive: true, { state in
                         return state.updatedInterfaceState { interfaceState in
                             return interfaceState.withUpdatedEffectiveInputState(newTextInputState)
                         }
                     })
+                }
+
+                if isAppleTranslationSelected(context: selfController.context) {
+                    let (_, sourceLanguage) = canTranslateText(context: selfController.context, text: textToTranslate, showTranslate: true, ignoredLanguages: nil)
+                    presentTranslateScreen(
+                        context: selfController.context,
+                        text: textToTranslate,
+                        entities: textEntities,
+                        canCopy: true,
+                        fromLanguage: sourceLanguage,
+                        toLanguage: outgoingMessageTranslateToLang,
+                        replaceText: applyTranslation,
+                        display: { _ in }
+                    )
+                    return
+                }
+
+                let _ = (selfController.context.engine.messages.translate(text: textToTranslate, toLang: outgoingMessageTranslateToLang, entities: textEntities) |> deliverOnMainQueue).start(next: { [weak selfController] translatedTextAndEntities in
+                    guard selfController != nil, let translatedTextAndEntities else { return }
+                    applyTranslation(translatedTextAndEntities.0, translatedTextAndEntities.1)
                 })
             }
         }, changeTranslationLanguage: { [weak selfController] in

@@ -5,6 +5,9 @@ import SwiftSignalKit
 import TelegramCore
 import AccountContext
 import TelegramUIPreferences
+import AlertUI
+import Display
+import PresentationDataUtils
 
 public struct ChatTranslationState: Codable {
     enum CodingKeys: String, CodingKey {
@@ -148,6 +151,42 @@ public func updateChatTranslationStateInteractively(engine: TelegramEngine, peer
 @available(iOS 12.0, *)
 private let languageRecognizer = NLLanguageRecognizer()
 
+private struct AppleTranslationFailureAlertState {
+    let timestamp: Double
+    let shouldPresent: Bool
+}
+
+private let appleTranslationFailureAlertState = Atomic<AppleTranslationFailureAlertState>(
+    value: AppleTranslationFailureAlertState(timestamp: 0.0, shouldPresent: false)
+)
+
+private func presentAppleTranslationFailure(context: AccountContext) {
+    let currentTimestamp = CFAbsoluteTimeGetCurrent()
+    let alertState = appleTranslationFailureAlertState.modify { previousState in
+        if currentTimestamp - previousState.timestamp < 30.0 {
+            return AppleTranslationFailureAlertState(timestamp: previousState.timestamp, shouldPresent: false)
+        } else {
+            return AppleTranslationFailureAlertState(timestamp: currentTimestamp, shouldPresent: true)
+        }
+    }
+    guard alertState.shouldPresent else {
+        return
+    }
+
+    Queue.mainQueue().async {
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        let controller = textAlertController(
+            context: context,
+            title: "Apple Translation",
+            text: "This language pair is unavailable, or its on-device language pack is not installed. Download the pack when Apple prompts, then try again.",
+            actions: [
+                TextAlertAction(type: .defaultAction, title: presentationData.strings.Common_OK, action: {})
+            ]
+        )
+        context.sharedContext.presentGlobalController(controller, nil)
+    }
+}
+
 public func translateMessageIds(context: AccountContext, messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, viaText: Bool = false, forQuickTranslate: Bool = false) -> Signal<Never, NoError> {
     return context.account.postbox.transaction { transaction -> Signal<Never, NoError> in
         var messageDictToTranslate: [EngineMessage.Id: String] = [:]
@@ -213,16 +252,35 @@ public func translateMessageIds(context: AccountContext, messageIds: [EngineMess
             }
         }
         
-        let translationConfiguration = TranslationConfiguration.with(appConfiguration: context.currentAppConfiguration.with { $0 })
-        var enableLocalIfPossible = false
-        switch translationConfiguration.auto {
-        case .system:
-            if #available(iOS 18.0, *) {
-                enableLocalIfPossible = true
+        if isAppleTranslationSelected(context: context) {
+            let appleMessageIds = messageIdsToTranslate.filter { messageId in
+                guard let message = transaction.getMessage(messageId),
+                      message.richText == nil,
+                      !message.media.contains(where: { $0 is TelegramMediaPoll }),
+                      !message.attributes.contains(where: { $0 is AudioTranscriptionMessageAttribute }) else {
+                    return false
+                }
+                return shouldScheduleAppleTranslation(text: message.text, toLanguage: toLang)
             }
-        default:
-            break
+            guard canUseAppleChatTranslation(context: context), !appleMessageIds.isEmpty else {
+                return .complete()
+            }
+            return context.engine.messages.translateMessages(
+                messageIds: appleMessageIds,
+                fromLang: nil,
+                toLang: toLang,
+                enableLocalIfPossible: false,
+                localOnly: true
+            )
+            |> `catch` { _ -> Signal<Never, NoError> in
+                // A local failure may mean an unsupported pair or a language pack that the user
+                // declined to download. Completing here is deliberate: never fall back to cloud.
+                presentAppleTranslationFailure(context: context)
+                return .complete()
+            }
         }
+
+        let enableLocalIfPossible = false
         if viaText {
         return context.engine.messages.translateMessagesViaText(messagesDict: messageDictToTranslate, fromLang: fromLang, toLang: toLang, generateEntitiesFunction: { text in
             generateTextEntities(text, enabledTypes: .all)

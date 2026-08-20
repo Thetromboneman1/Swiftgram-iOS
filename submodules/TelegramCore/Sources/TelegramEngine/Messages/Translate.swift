@@ -1,3 +1,4 @@
+import BonemanTranslation
 import SGGTranslate
 import SGTranslationLangFix
 
@@ -219,20 +220,193 @@ func _internal_translateTexts(network: Network, texts: [(String, [MessageTextEnt
     }
 }
 
-func _internal_translateMessages(account: Account, messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, tone: TranslationTone = .neutral) -> Signal<Never, TranslationError> {
+func _internal_translateMessages(account: Account, messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, localOnly: Bool = false, tone: TranslationTone = .neutral) -> Signal<Never, TranslationError> {
     var signals: [Signal<Void, TranslationError>] = []
     for (peerId, messageIds) in messagesIdsGroupedByPeerId(messageIds) {
-        signals.append(_internal_translateMessagesByPeerId(account: account, peerId: peerId, messageIds: messageIds, fromLang: fromLang, toLang: toLang, enableLocalIfPossible: enableLocalIfPossible, tone: tone))
+        signals.append(_internal_translateMessagesByPeerId(account: account, peerId: peerId, messageIds: messageIds, fromLang: fromLang, toLang: toLang, enableLocalIfPossible: enableLocalIfPossible, localOnly: localOnly, tone: tone))
     }
     return combineLatest(signals)
     |> ignoreValues
 }
 
 public protocol ExperimentalInternalTranslationService: AnyObject {
-    func translate(texts: [AnyHashable: String], fromLang: String, toLang: String) -> Signal<[AnyHashable: String]?, NoError>
+    func translate(texts: [AnyHashable: String], fromLang: String?, toLang: String) -> Signal<[AnyHashable: String]?, NoError>
+    func clearCache()
 }
 
 public var engineExperimentalInternalTranslationService: ExperimentalInternalTranslationService?
+
+private let bonemanAppleTranslationMessageIdIndexKey = applicationSpecificPreferencesKey(0x424f4e)
+private let bonemanAppleTranslationMessageIdIndexCapacity = 2048
+private let bonemanAppleTranslationPersistenceGeneration = Atomic<Int64>(value: 0)
+
+private struct BonemanAppleTranslationMessageIdIndex: Codable {
+    var messageIds: [MessageId]
+}
+
+private func _internal_removeBonemanAppleTranslationAttribute(transaction: Transaction, messageId: MessageId) {
+    transaction.updateMessage(messageId, update: { currentMessage in
+        let attributes = currentMessage.attributes.filter { attribute in
+            guard let translationAttribute = attribute as? TranslationMessageAttribute else {
+                return true
+            }
+            return translationAttribute.provenance != .bonemanApple
+        }
+        guard attributes.count != currentMessage.attributes.count else {
+            return .skip
+        }
+        let storeForwardInfo = currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init)
+        return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+    })
+}
+
+private func _internal_recordBonemanAppleTranslationMessageId(transaction: Transaction, messageId: MessageId) {
+    let persistedIds = transaction.getPreferencesEntry(key: bonemanAppleTranslationMessageIdIndexKey)?.get(BonemanAppleTranslationMessageIdIndex.self)?.messageIds ?? []
+    var index = BonemanTranslationBoundedIndex(values: persistedIds, capacity: bonemanAppleTranslationMessageIdIndexCapacity)
+    let evictedIds = index.touch(messageId)
+
+    for evictedId in evictedIds {
+        _internal_removeBonemanAppleTranslationAttribute(transaction: transaction, messageId: evictedId)
+    }
+    transaction.setPreferencesEntry(
+        key: bonemanAppleTranslationMessageIdIndexKey,
+        value: PreferencesEntry(BonemanAppleTranslationMessageIdIndex(messageIds: index.values))
+    )
+}
+
+func _internal_clearCachedMessageTranslations(account: Account, peerId: EnginePeer.Id, threadId: Int64?) -> Signal<Never, NoError> {
+    let _ = bonemanAppleTranslationPersistenceGeneration.modify { value in
+        return value &+ 1
+    }
+    engineExperimentalInternalTranslationService?.clearCache()
+
+    return account.postbox.transaction { transaction -> Void in
+        let persistedIds = transaction.getPreferencesEntry(key: bonemanAppleTranslationMessageIdIndexKey)?.get(BonemanAppleTranslationMessageIdIndex.self)?.messageIds ?? []
+        var index = BonemanTranslationBoundedIndex(values: persistedIds, capacity: bonemanAppleTranslationMessageIdIndexCapacity)
+        var removedIds = Set<MessageId>()
+
+        for messageId in index.values where messageId.peerId == peerId {
+            guard let message = transaction.getMessage(messageId) else {
+                removedIds.insert(messageId)
+                continue
+            }
+            if let threadId, message.threadId != threadId {
+                continue
+            }
+            _internal_removeBonemanAppleTranslationAttribute(transaction: transaction, messageId: messageId)
+            removedIds.insert(messageId)
+        }
+
+        index.remove(removedIds)
+        if index.values.isEmpty {
+            transaction.setPreferencesEntry(key: bonemanAppleTranslationMessageIdIndexKey, value: nil)
+        } else {
+            transaction.setPreferencesEntry(
+                key: bonemanAppleTranslationMessageIdIndexKey,
+                value: PreferencesEntry(BonemanAppleTranslationMessageIdIndex(messageIds: index.values))
+            )
+        }
+    }
+    |> ignoreValues
+}
+
+private func _internal_translateTextsLocally(account: Account, messageTexts: [EngineMessage.Id: String], fromLang: String?, toLang: String) -> Signal<Void, TranslationError> {
+    guard let engineExperimentalInternalTranslationService else {
+        return .fail(.generic)
+    }
+
+    guard !messageTexts.isEmpty else {
+        return .single(Void())
+    }
+
+    var inputTexts: [AnyHashable: String] = [:]
+    for (messageId, text) in messageTexts {
+        inputTexts[AnyHashable(messageId)] = text
+    }
+
+    return Signal { subscriber in
+        let isCancelled = Atomic<Bool>(value: false)
+        let disposables = DisposableSet()
+        let persistenceGeneration = bonemanAppleTranslationPersistenceGeneration.with { $0 }
+
+        func requestIsCurrent() -> Bool {
+            return !isCancelled.with({ $0 }) && bonemanAppleTranslationPersistenceGeneration.with({ $0 }) == persistenceGeneration
+        }
+
+        let translationDisposable = engineExperimentalInternalTranslationService.translate(texts: inputTexts, fromLang: fromLang, toLang: toLang).start(next: { resultTexts in
+            guard requestIsCurrent() else {
+                return
+            }
+
+            guard let resultTexts else {
+                subscriber.putError(.generic)
+                return
+            }
+
+            let transactionDisposable = account.postbox.transaction { transaction -> Bool in
+                guard requestIsCurrent() else {
+                    return false
+                }
+
+                for (messageId, sourceText) in messageTexts {
+                    guard requestIsCurrent(), let resultText = resultTexts[AnyHashable(messageId)] else {
+                        continue
+                    }
+
+                    // Empty text is an Apple-owned terminal sentinel for unsupported or no-op work.
+                    // It is intentionally retained so a visible message is not scheduled forever.
+                    let translatedText = resultText == sourceText ? "" : resultText
+                    let updatedAttribute = TranslationMessageAttribute(
+                        text: translatedText,
+                        entities: [],
+                        toLang: toLang,
+                        provenance: .bonemanApple
+                    )
+                    var didUpdateMessage = false
+                    transaction.updateMessage(messageId, update: { currentMessage in
+                        guard requestIsCurrent(), currentMessage.text == sourceText else {
+                            return .skip
+                        }
+
+                        let storeForwardInfo = currentMessage.forwardInfo.flatMap(StoreMessageForwardInfo.init)
+                        var attributes = currentMessage.attributes.filter { attribute in
+                            guard let translationAttribute = attribute as? TranslationMessageAttribute else {
+                                return true
+                            }
+                            return translationAttribute.provenance != .bonemanApple
+                        }
+                        // Keep the locally selected translation first for legacy readers that inspect
+                        // only the first TranslationMessageAttribute, without deleting upstream data.
+                        attributes.insert(updatedAttribute, at: 0)
+                        didUpdateMessage = true
+                        return .update(StoreMessage(id: currentMessage.id, customStableId: nil, globallyUniqueId: currentMessage.globallyUniqueId, groupingKey: currentMessage.groupingKey, threadId: currentMessage.threadId, timestamp: currentMessage.timestamp, flags: StoreMessageFlags(currentMessage.flags), tags: currentMessage.tags, globalTags: currentMessage.globalTags, localTags: currentMessage.localTags, forwardInfo: storeForwardInfo, authorId: currentMessage.author?.id, text: currentMessage.text, attributes: attributes, media: currentMessage.media))
+                    })
+                    if didUpdateMessage {
+                        _internal_recordBonemanAppleTranslationMessageId(transaction: transaction, messageId: messageId)
+                    }
+                }
+                return true
+            }.start(next: { didRun in
+                guard didRun, requestIsCurrent() else {
+                    return
+                }
+                subscriber.putNext(Void())
+            }, completed: {
+                guard requestIsCurrent() else {
+                    return
+                }
+                subscriber.putCompletion()
+            })
+            disposables.add(transactionDisposable)
+        })
+        disposables.add(translationDisposable)
+
+        return ActionDisposable {
+            let _ = isCancelled.swap(true)
+            disposables.dispose()
+        }
+    }
+}
 
 /// Translates rich messages (those carrying a `RichTextMessageAttribute`) by id via
 /// `messages.translateRichMessage`, stores each result as a `TranslationMessageAttribute` with the
@@ -283,12 +457,26 @@ func _internal_translateRichMessages(account: Account, inputPeer: Api.InputPeer,
     }
 }
 
-private func _internal_translateMessagesByPeerId(account: Account, peerId: EnginePeer.Id, messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, tone: TranslationTone = .neutral) -> Signal<Void, TranslationError> {
+private func _internal_translateMessagesByPeerId(account: Account, peerId: EnginePeer.Id, messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, localOnly: Bool, tone: TranslationTone = .neutral) -> Signal<Void, TranslationError> {
     return account.postbox.transaction { transaction -> (Api.InputPeer?, [Message]) in
         return (transaction.getPeer(peerId).flatMap(apiInputPeer), messageIds.compactMap({ transaction.getMessage($0) }))
     }
     |> castError(TranslationError.self)
     |> mapToSignal { (inputPeer, messages) -> Signal<Void, TranslationError> in
+        if localOnly {
+            var messageTexts: [EngineMessage.Id: String] = [:]
+            for message in messages {
+                if message.attributes.contains(where: { $0 is RichTextMessageAttribute || $0 is AudioTranscriptionMessageAttribute }) {
+                    continue
+                }
+                if message.media.contains(where: { $0 is TelegramMediaPoll }) {
+                    continue
+                }
+                messageTexts[message.id] = message.text
+            }
+            return _internal_translateTextsLocally(account: account, messageTexts: messageTexts, fromLang: fromLang, toLang: toLang)
+        }
+
         guard let inputPeer = inputPeer else {
             return .never()
         }
@@ -484,7 +672,11 @@ private func _internal_translateMessagesByPeerId(account: Account, peerId: Engin
     }
 }
 
-func _internal_translateMessagesViaText(account: Account, messagesDict: [EngineMessage.Id: String], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, generateEntitiesFunction: @escaping (String) -> [MessageTextEntity]) -> Signal<Never, TranslationError> {
+func _internal_translateMessagesViaText(account: Account, messagesDict: [EngineMessage.Id: String], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, localOnly: Bool = false, generateEntitiesFunction: @escaping (String) -> [MessageTextEntity]) -> Signal<Never, TranslationError> {
+    if localOnly {
+        return _internal_translateTextsLocally(account: account, messageTexts: messagesDict, fromLang: fromLang, toLang: toLang)
+        |> ignoreValues
+    }
     var listOfSignals: [Signal<Void, TranslationError>] = []
     for (messageId, text) in messagesDict {
         listOfSignals.append(

@@ -7164,6 +7164,19 @@ public class ChatMessageBubbleItemNode: ChatMessageItemView, ChatMessagePreviewI
                     
                 }).start()
             } else {
+                if isAppleTranslationSelected(context: item.context) {
+                    presentTranslateScreen(
+                        context: item.context,
+                        text: item.message.text,
+                        entities: item.message.textEntitiesAttribute?.entities ?? [],
+                        canCopy: true,
+                        fromLanguage: nil,
+                        toLanguage: translateToLanguage,
+                        display: { _ in }
+                    )
+                    return
+                }
+
                 Queue.mainQueue().async {
                     self.updateParentMessageIsTranslating(true)
                 }

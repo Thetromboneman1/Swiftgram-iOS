@@ -219,8 +219,8 @@ private func SGControllerEntries(presentationData: PresentationData, callListSet
 
     
     entries.append(.header(id: id.count, section: .translation, text: strings.Localization_TranslateMessages.uppercased(), badge: nil))
-    entries.append(.oneFromManySelector(id: id.count, section: .translation, settingName: .translationBackend, text: i18n("Settings.Translation.Backend", lang), value: i18n("Settings.Translation.Backend.\(SGSimpleSettings.shared.translationBackend)", lang), enabled: true))
-    if SGSimpleSettings.shared.translationBackendEnum != .gtranslate {
+    entries.append(.oneFromManySelector(id: id.count, section: .translation, settingName: .translationBackend, text: i18n("Settings.Translation.Backend", lang), value: i18n("Settings.Translation.Backend.\(SGSimpleSettings.shared.translationBackendEnum.rawValue)", lang), enabled: true))
+    if SGSimpleSettings.shared.translationBackendEnum == .default {
         entries.append(.notice(id: id.count, section: .translation, text: i18n("Settings.Translation.Backend.Notice", lang, "Settings.Translation.Backend.\(SGSimpleSettings.TranslationBackend.gtranslate.rawValue)".i18n(lang))))
     } else {
         id.increment(1)
@@ -638,7 +638,7 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
                     if value == .system {
                         if #available(iOS 18.0, *) {
                         } else {
-                            continue // System translation is not available on iOS 17 and below
+                            continue
                         }
                     }
                     items.append(ActionSheetButtonItem(title: i18n("Settings.Translation.Backend.\(value.rawValue)", presentationData.strings.baseLanguageCode), color: .accent, action: { [weak actionSheet] in

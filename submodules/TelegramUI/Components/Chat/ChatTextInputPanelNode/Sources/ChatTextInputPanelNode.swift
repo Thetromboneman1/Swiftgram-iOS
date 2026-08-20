@@ -5291,15 +5291,24 @@ public class ChatTextInputPanelNode: ChatInputPanelNode, ASEditableTextNodeDeleg
     
     @objc public func _translate(_ sender: Any) {
         var text = NSAttributedString()
+        var sourceInputState: ChatTextInputState?
         self.interfaceInteraction?.updateTextInputStateAndMode { current, inputMode in
             text = current.inputText.attributedSubstring(from: NSMakeRange(current.selectionRange.lowerBound, current.selectionRange.count))
+            sourceInputState = ChatTextInputState(
+                inputText: NSAttributedString(attributedString: current.inputText),
+                selectionRange: current.selectionRange
+            )
             return (current, inputMode)
         }
         self.interfaceInteraction?.presentInputTextTranslation(text, { [weak self] attributedString in
-            guard let self else {
+            guard let self, let sourceInputState else {
                 return
             }
             self.interfaceInteraction?.updateTextInputStateAndMode { current, inputMode in
+                guard current.selectionRange == sourceInputState.selectionRange,
+                      current.inputText.isEqual(to: sourceInputState.inputText) else {
+                    return (current, inputMode)
+                }
                 if let inputText = current.inputText.mutableCopy() as? NSMutableAttributedString {
                     inputText.replaceCharacters(in: NSMakeRange(current.selectionRange.lowerBound, current.selectionRange.count), with: attributedString)
                     let updatedRange = current.selectionRange.lowerBound + attributedString.length

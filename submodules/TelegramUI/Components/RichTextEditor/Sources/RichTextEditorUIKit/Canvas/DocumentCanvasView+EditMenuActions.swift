@@ -1,7 +1,5 @@
 #if canImport(UIKit)
 import UIKit
-import SwiftUI
-import Translation
 
 /// Rich edit-menu items appended to the system `suggestedActions`. A custom UITextInput view that avoids
 /// UITextInteraction does NOT get Look Up / Share / a Format submenu for free (those are text-services
@@ -33,9 +31,6 @@ extension DocumentCanvasView {
             formatMenu(),
             UIAction(title: "Look Up") { [weak self] _ in self?.presentLookUp() },
         ]
-        if #available(iOS 17.4, *) {
-            elements.append(UIAction(title: "Translate") { [weak self] _ in self?.presentTranslate() })
-        }
         elements.append(UIAction(title: "Share") { [weak self] _ in self?.presentShare() })
         return elements
     }
@@ -48,7 +43,7 @@ extension DocumentCanvasView {
         ])
     }
 
-    /// The nearest view controller up the responder chain (to present Look Up / Share / Translate modals).
+    /// The nearest view controller up the responder chain (to present Look Up / Share modals).
     func owningViewController() -> UIViewController? {
         var responder: UIResponder? = self
         while let r = responder {
@@ -69,18 +64,6 @@ extension DocumentCanvasView {
         vc.present(UIReferenceLibraryViewController(term: term), animated: true)
     }
 
-    func presentTranslate() {
-        guard #available(iOS 17.4, *) else { return }
-        guard let term = selectedPlainText(), let vc = owningViewController() else { return }
-        weak var host: UIViewController?
-        let hc = UIHostingController(rootView: TranslatePresenter(text: term) { host?.dismiss(animated: false) })
-        host = hc
-        hc.view.backgroundColor = .clear
-        // The host is invisible; the inner system translate sheet provides its own animation.
-        hc.modalPresentationStyle = .overCurrentContext
-        vc.present(hc, animated: false)
-    }
-
     func presentShare() {
         guard let term = selectedPlainText(), let vc = owningViewController() else { return }
         let activity = UIActivityViewController(activityItems: [term], applicationActivities: nil)
@@ -92,19 +75,4 @@ extension DocumentCanvasView {
     }
 }
 
-/// A zero-size SwiftUI view that drives the system Translate sheet via `.translationPresentation`, then
-/// calls `onClose` when the sheet closes so its UIKit hosting controller can be torn down explicitly
-/// (relying on @Environment(\.dismiss) for a UIKit-presented host is not guaranteed). The public
-/// Translate API is SwiftUI-only.
-@available(iOS 17.4, *)
-private struct TranslatePresenter: View {
-    let text: String
-    let onClose: () -> Void
-    @State private var isPresented = true
-    var body: some View {
-        Color.clear
-            .translationPresentation(isPresented: $isPresented, text: text)
-            .onChange(of: isPresented) { _, shown in if !shown { onClose() } }
-    }
-}
 #endif

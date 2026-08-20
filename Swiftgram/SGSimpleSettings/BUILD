@@ -10,6 +10,7 @@ swift_library(
         "-warnings-as-errors",
     ],
     deps = [
+        "//Swiftgram/BonemanTranslation:BonemanTranslation",
         "//Swiftgram/SGAppGroupIdentifier:SGAppGroupIdentifier",
         "//Swiftgram/SGLogging:SGLogging",
     ],

@@ -1,6 +1,13 @@
 import Postbox
 
 public class TranslationMessageAttribute: MessageAttribute, Equatable {
+    public enum Provenance: Int32 {
+        /// Telegram, Swiftgram, and legacy attributes that predate explicit provenance.
+        case upstream = 0
+        /// Content produced locally by Boneman's Apple TranslationSession integration.
+        case bonemanApple = 1
+    }
+
     public struct Additional : PostboxCoding, Equatable {
         public let text: String
         public let entities: [MessageTextEntity]
@@ -24,6 +31,7 @@ public class TranslationMessageAttribute: MessageAttribute, Equatable {
     public let text: String
     public let entities: [MessageTextEntity]
     public let toLang: String
+    public let provenance: Provenance
 
     public let additional: [Additional]
     public let pollSolution: Additional?
@@ -41,11 +49,13 @@ public class TranslationMessageAttribute: MessageAttribute, Equatable {
         additional:[Additional] = [],
         pollSolution: Additional? = nil,
         toLang: String,
-        instantPage: InstantPage? = nil
+        instantPage: InstantPage? = nil,
+        provenance: Provenance = .upstream
     ) {
         self.text = text
         self.entities = entities
         self.toLang = toLang
+        self.provenance = provenance
         self.additional = additional
         self.pollSolution = pollSolution
         self.instantPage = instantPage
@@ -56,6 +66,7 @@ public class TranslationMessageAttribute: MessageAttribute, Equatable {
         self.entities = decoder.decodeObjectArrayWithDecoderForKey("entities")
         self.additional = decoder.decodeObjectArrayWithDecoderForKey("additional")
         self.toLang = decoder.decodeStringForKey("toLang", orElse: "")
+        self.provenance = Provenance(rawValue: decoder.decodeInt32ForKey("bonemanProvenance", orElse: 0)) ?? .upstream
         self.pollSolution = decoder.decodeObjectForKey("pollSolution") as? Additional
         self.instantPage = decoder.decodeObjectForKey("ipage", decoder: { InstantPage(decoder: $0) }) as? InstantPage
     }
@@ -64,6 +75,7 @@ public class TranslationMessageAttribute: MessageAttribute, Equatable {
         encoder.encodeString(self.text, forKey: "text")
         encoder.encodeObjectArray(self.entities, forKey: "entities")
         encoder.encodeString(self.toLang, forKey: "toLang")
+        encoder.encodeInt32(self.provenance.rawValue, forKey: "bonemanProvenance")
         encoder.encodeObjectArray(self.additional, forKey: "additional")
 
         if let pollSolution {
@@ -86,6 +98,9 @@ public class TranslationMessageAttribute: MessageAttribute, Equatable {
             return false
         }
         if lhs.toLang != rhs.toLang {
+            return false
+        }
+        if lhs.provenance != rhs.provenance {
             return false
         }
         if lhs.additional != rhs.additional {

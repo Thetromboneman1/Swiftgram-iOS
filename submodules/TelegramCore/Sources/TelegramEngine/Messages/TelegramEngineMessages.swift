@@ -739,13 +739,17 @@ public extension TelegramEngine {
             }
         }
         
-        public func translateMessages(messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, tone: TranslationTone = .neutral) -> Signal<Never, TranslationError> {
-            return _internal_translateMessages(account: self.account, messageIds: messageIds, fromLang: fromLang, toLang: toLang, enableLocalIfPossible: enableLocalIfPossible, tone: tone)
+        public func translateMessages(messageIds: [EngineMessage.Id], fromLang: String?, toLang: String, enableLocalIfPossible: Bool, localOnly: Bool = false, tone: TranslationTone = .neutral) -> Signal<Never, TranslationError> {
+            return _internal_translateMessages(account: self.account, messageIds: messageIds, fromLang: fromLang, toLang: toLang, enableLocalIfPossible: enableLocalIfPossible, localOnly: localOnly, tone: tone)
         }
 
         // MARK: Swiftgram
-        public func translateMessagesViaText(messagesDict: [EngineMessage.Id: String], fromLang: String?, toLang: String, generateEntitiesFunction: @escaping (String) -> [MessageTextEntity], enableLocalIfPossible: Bool) -> Signal<Never, TranslationError> {
-            return _internal_translateMessagesViaText(account: self.account, messagesDict: messagesDict, fromLang: fromLang, toLang: toLang, enableLocalIfPossible: enableLocalIfPossible, generateEntitiesFunction: generateEntitiesFunction)
+        public func translateMessagesViaText(messagesDict: [EngineMessage.Id: String], fromLang: String?, toLang: String, generateEntitiesFunction: @escaping (String) -> [MessageTextEntity], enableLocalIfPossible: Bool, localOnly: Bool = false) -> Signal<Never, TranslationError> {
+            return _internal_translateMessagesViaText(account: self.account, messagesDict: messagesDict, fromLang: fromLang, toLang: toLang, enableLocalIfPossible: enableLocalIfPossible, localOnly: localOnly, generateEntitiesFunction: generateEntitiesFunction)
+        }
+
+        public func clearCachedMessageTranslations(peerId: EnginePeer.Id, threadId: Int64?) -> Signal<Never, NoError> {
+            return _internal_clearCachedMessageTranslations(account: self.account, peerId: peerId, threadId: threadId)
         }
         
         public func togglePeerMessagesTranslationHidden(peerId: EnginePeer.Id, hidden: Bool) -> Signal<Never, NoError> {
@@ -2055,10 +2059,17 @@ private func sgWrappedTranslateSingle(
     toLang: String,
     `default`: Signal<(String, [MessageTextEntity])?, TranslationError>
 ) -> Signal<(String, [MessageTextEntity])?, TranslationError> {
-    if SGSimpleSettings.shared.translationBackend == SGSimpleSettings.TranslationBackend.gtranslate.rawValue {
+    switch SGSimpleSettings.shared.translationBackendEnum {
+    case .gtranslate:
         return gtranslate(text, toLang)
             |> map { ($0, []) }
             |> mapError { _ in .generic }
+    case .system:
+        // Apple-backed calls must enter through the explicit local-only service. Never let a
+        // system selection reach Telegram or Swiftgram's Google fallback.
+        return .fail(.generic)
+    case .default:
+        break
     }
 
     return `default`
@@ -2074,13 +2085,18 @@ private func sgWrappedTranslateMultiple(
     toLang: String,
     `default`: Signal<[(String, [MessageTextEntity])], TranslationError>
 ) -> Signal<[(String, [MessageTextEntity])], TranslationError> {
-    if SGSimpleSettings.shared.translationBackend == SGSimpleSettings.TranslationBackend.gtranslate.rawValue {
+    switch SGSimpleSettings.shared.translationBackendEnum {
+    case .gtranslate:
         let translatedSignals: [Signal<(String, [MessageTextEntity]), TranslationError>] = texts.map { (text, _) in
             gtranslate(text, toLang)
                 |> map { ($0, []) }
                 |> mapError { _ in .generic }
         }
         return combineLatest(translatedSignals)
+    case .system:
+        return .fail(.generic)
+    case .default:
+        break
     }
 
     return `default`
