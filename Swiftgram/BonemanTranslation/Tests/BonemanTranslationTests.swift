@@ -185,7 +185,7 @@ final class BonemanTranslationWorkQueueTests: XCTestCase {
         XCTAssertEqual(freshResult, .translated("hola"))
     }
 
-    func testRejectsUniqueWorkBeyondCapacityButStillCoalesces() {
+    func testCapacityBoundsUniqueWorkAndCoalescedSubscribers() {
         let queue = BonemanTranslationWorkQueue(capacity: 2)
         let first = BonemanTranslationCacheKey(text: "one", sourceLanguage: nil, targetLanguage: "es")
         let second = BonemanTranslationCacheKey(text: "two", sourceLanguage: nil, targetLanguage: "es")
@@ -193,8 +193,11 @@ final class BonemanTranslationWorkQueueTests: XCTestCase {
 
         XCTAssertTrue(queue.enqueue(key: first, subscriberId: 1, completion: { _ in }))
         XCTAssertTrue(queue.enqueue(key: second, subscriberId: 2, completion: { _ in }))
+        XCTAssertFalse(queue.enqueue(key: first, subscriberId: 3, completion: { _ in }))
+        XCTAssertTrue(queue.enqueue(key: first, subscriberId: 1, completion: { _ in }))
+        queue.cancel(subscriberId: 2)
         XCTAssertTrue(queue.enqueue(key: first, subscriberId: 3, completion: { _ in }))
         XCTAssertFalse(queue.enqueue(key: third, subscriberId: 4, completion: { _ in }))
-        XCTAssertEqual(queue.count, 2)
+        XCTAssertEqual(queue.count, 1)
     }
 }

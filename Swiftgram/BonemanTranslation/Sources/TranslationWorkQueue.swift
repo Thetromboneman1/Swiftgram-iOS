@@ -41,6 +41,7 @@ public final class BonemanTranslationWorkQueue {
     private var workIdByKey: [BonemanTranslationCacheKey: Int] = [:]
     private var pendingWorkIds: [Int] = []
     private var activeWorkId: Int?
+    private var subscriberCount: Int = 0
 
     public init(capacity: Int = 128) {
         self.capacity = max(1, capacity)
@@ -66,10 +67,16 @@ public final class BonemanTranslationWorkQueue {
         }
 
         if let workId = self.workIdByKey[key], let entry = self.entriesById[workId] {
+            if entry.completions[subscriberId] == nil {
+                guard self.subscriberCount < self.capacity else {
+                    return false
+                }
+                self.subscriberCount += 1
+            }
             entry.completions[subscriberId] = completion
             return true
         }
-        guard self.entriesById.count < self.capacity else {
+        guard self.entriesById.count < self.capacity, self.subscriberCount < self.capacity else {
             return false
         }
 
@@ -77,6 +84,7 @@ public final class BonemanTranslationWorkQueue {
         self.nextWorkId &+= 1
         let work = BonemanTranslationWork(id: workId, key: key)
         self.entriesById[workId] = Entry(work: work, subscriberId: subscriberId, completion: completion)
+        self.subscriberCount += 1
         self.workIdByKey[key] = workId
         self.pendingWorkIds.append(workId)
         return true
@@ -138,7 +146,9 @@ public final class BonemanTranslationWorkQueue {
         self.lock.lock()
         var emptyPendingWorkIds: [Int] = []
         for (workId, entry) in self.entriesById {
-            entry.completions.removeValue(forKey: subscriberId)
+            if entry.completions.removeValue(forKey: subscriberId) != nil {
+                self.subscriberCount -= 1
+            }
             if entry.completions.isEmpty, workId != self.activeWorkId {
                 emptyPendingWorkIds.append(workId)
             }
@@ -162,6 +172,7 @@ public final class BonemanTranslationWorkQueue {
             self.removeEntryLocked(workId: workId)
         }
         if let activeWorkId, let activeEntry = self.entriesById[activeWorkId] {
+            self.subscriberCount -= activeEntry.completions.count
             activeEntry.completions.removeAll(keepingCapacity: false)
             if self.workIdByKey[activeEntry.work.key] == activeWorkId {
                 self.workIdByKey.removeValue(forKey: activeEntry.work.key)
@@ -174,6 +185,7 @@ public final class BonemanTranslationWorkQueue {
         guard let entry = self.entriesById.removeValue(forKey: workId) else {
             return
         }
+        self.subscriberCount -= entry.completions.count
         if self.workIdByKey[entry.work.key] == workId {
             self.workIdByKey.removeValue(forKey: entry.work.key)
         }
