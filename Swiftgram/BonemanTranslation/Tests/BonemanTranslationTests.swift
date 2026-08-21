@@ -62,6 +62,26 @@ final class BonemanTranslationPolicyTests: XCTestCase {
             "fi"
         )
     }
+
+    func testMixedChatPrefersForeignLanguageOverDominantIgnoredLanguage() {
+        XCTAssertEqual(
+            BonemanTranslationPolicy.resolvedChatSourceLanguage(
+                languageWeights: ["en": 500, "ar": 80],
+                ignoredLanguages: ["en"]
+            ),
+            "ar"
+        )
+    }
+
+    func testMixedChatFallsBackToDominantLanguageWhenAllAreIgnored() {
+        XCTAssertEqual(
+            BonemanTranslationPolicy.resolvedChatSourceLanguage(
+                languageWeights: ["en-US": 500, "es": 80],
+                ignoredLanguages: ["en-US", "es"]
+            ),
+            "en-US"
+        )
+    }
 }
 
 final class BonemanTranslationCacheTests: XCTestCase {

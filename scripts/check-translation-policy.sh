@@ -149,6 +149,12 @@ rg --fixed-strings --quiet '["bg", "kk"]' "${policy_file}" \
     || fail "observed Bulgarian and Kazakh misclassification fallback is missing"
 rg --fixed-strings --quiet 'detectedLanguage: "fi"' "${test_root}" \
     || fail "tests do not cover the observed Cyrillic-to-Finnish misclassification"
+rg --fixed-strings --quiet 'languageWeights: ["en": 500, "ar": 80]' "${test_root}" \
+    || fail "tests do not cover foreign-language discovery in a mixed chat"
+rg --fixed-strings --quiet 'resolvedChatSourceLanguage' "${chat_file}" \
+    || fail "whole-chat discovery does not prefer a translatable minority language"
+rg --fixed-strings --quiet 'shouldOfferAppleTranslation' "${service_file}" \
+    || fail "Apple mode does not expose eligible per-message translation"
 rg --fixed-strings --quiet 'fromLang: fromLang' "${chat_file}" \
     || fail "whole-chat Apple translation discards its known chat source language"
 rg --quiet 'case[[:space:]]+system' "${simple_settings_file}" \

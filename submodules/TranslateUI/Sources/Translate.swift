@@ -247,7 +247,9 @@ public func canTranslateChats(context: AccountContext) -> Bool {
 }
 
 public func canTranslateText(context: AccountContext, text: String, showTranslate: Bool, showTranslateIfTopical: Bool = false, ignoredLanguages: [String]?) -> (canTranslate: Bool, language: String?) {
-    guard showTranslate || showTranslateIfTopical, BonemanTranslationPolicy.shouldTranslate(text: text, fromLanguage: nil, toLanguage: "und") else {
+    let shouldOfferAppleTranslation = isAppleTranslationSelected(context: context)
+    guard showTranslate || showTranslateIfTopical || shouldOfferAppleTranslation,
+          BonemanTranslationPolicy.shouldTranslate(text: text, fromLanguage: nil, toLanguage: "und") else {
         return (false, nil)
     }
 

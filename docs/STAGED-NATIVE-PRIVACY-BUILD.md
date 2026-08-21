@@ -39,6 +39,12 @@ The follow-up fix centralizes script-safe source resolution in `BonemanTranslati
 
 Screenshots with blank message bodies are separate from translation. Telegram suppresses captured message content in chats with content-saving protection enabled, such as the upstream `Restrict Saving Content` policy. Swiftgram's Privacy Tools do not remove message text from screenshots.
 
+### Mixed-language chat discovery
+
+Physical testing of build `1787338001` found a separate discovery failure in a mostly-English Service X chat containing an Arabic message body. No translation bar or per-message Translate action appeared, and redacted diagnostics remained idle on the prior `ru` to `en` batch. Apple had not received an Arabic request.
+
+The chat detector previously cached the dominant ignored language for an hour and selected it ahead of any smaller foreign-language population. The replacement logic immediately recomputes ignored cached results and prefers the strongest non-ignored language, so an English-plus-Arabic chat exposes Arabic whole-chat translation. Apple mode also offers the eligible per-message Translate action without depending on the legacy cloud-oriented button preference. The path remains Apple `localOnly` with no cloud fallback. Regression tests cover dominant-English/minority-Arabic selection and the all-ignored fallback; full simulator build `1787339001` passed.
+
 ## Reinstall command
 
 After verification, extract the staged IPA into a private temporary directory and install the `.app`, not the IPA ZIP:

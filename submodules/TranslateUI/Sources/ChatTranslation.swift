@@ -1,4 +1,5 @@
 import TextFormat
+import BonemanTranslation
 import Foundation
 import NaturalLanguage
 import SwiftSignalKit
@@ -340,7 +341,7 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
             
             var dontTranslateLanguages = Set<String>()
             if let ignoredLanguages = settings.ignoredLanguages {
-                dontTranslateLanguages = Set(ignoredLanguages)
+                dontTranslateLanguages = Set(ignoredLanguages.map(normalizeTranslationLanguage))
             } else {
                 dontTranslateLanguages.insert(baseLang)
                 for language in systemLanguageCodes() {
@@ -351,8 +352,12 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
             return cachedChatTranslationState(engine: context.engine, peerId: peerId, threadId: threadId)
             |> mapToSignal { cached in
                 let currentTime = Int32(CFAbsoluteTimeGetCurrent() + kCFAbsoluteTimeIntervalSince1970)
-                if let cached, let timestamp = cached.timestamp, cached.baseLang == baseLang && currentTime - timestamp < 60 * 60 {
-                    if !dontTranslateLanguages.contains(cached.fromLang) || forcePredict {
+                if let cached,
+                   let timestamp = cached.timestamp,
+                   cached.baseLang == baseLang,
+                   currentTime - timestamp < 60 * 60,
+                   (!dontTranslateLanguages.contains(normalizeTranslationLanguage(cached.fromLang)) || cached.isEnabled == true) {
+                    if !dontTranslateLanguages.contains(normalizeTranslationLanguage(cached.fromLang)) || cached.isEnabled == true || forcePredict {
                         return .single(cached)
                     } else {
                         return .single(nil)
@@ -431,17 +436,10 @@ public func chatTranslationState(context: AccountContext, peerId: EnginePeer.Id,
                                 }
                             }
                                                         
-                            var mostFrequent: (String, Int)?
-                            for (lang, count) in fromLangs {
-                                if let current = mostFrequent {
-                                    if count > current.1 {
-                                        mostFrequent = (lang, count)
-                                    }
-                                } else {
-                                    mostFrequent = (lang, count)
-                                }
-                            }
-                            let fromLang = mostFrequent?.0 ?? ""
+                            let fromLang = BonemanTranslationPolicy.resolvedChatSourceLanguage(
+                                languageWeights: fromLangs,
+                                ignoredLanguages: dontTranslateLanguages
+                            ) ?? ""
                             if loggingEnabled {
                                 Logger.shared.log("ChatTranslation", "Ended with: \(fromLang)")
                             }

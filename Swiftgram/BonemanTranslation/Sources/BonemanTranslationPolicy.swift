@@ -58,6 +58,27 @@ public enum BonemanTranslationPolicy {
         return detectedLanguage ?? preferredLanguage
     }
 
+    /// Chooses a translatable source from a mixed chat before falling back to its dominant
+    /// language. Otherwise a mostly-English chat can hide an Arabic (or other foreign-language)
+    /// minority and never expose whole-chat translation.
+    public static func resolvedChatSourceLanguage(
+        languageWeights: [String: Int],
+        ignoredLanguages: Set<String>
+    ) -> String? {
+        let normalizedIgnoredLanguages = Set(ignoredLanguages.map(self.canonicalLanguageIdentifier))
+        let normalizedWeights = languageWeights.reduce(into: [String: Int]()) { result, item in
+            result[self.canonicalLanguageIdentifier(item.key), default: 0] += item.value
+        }
+        let rankedLanguages = normalizedWeights.sorted { lhs, rhs in
+            if lhs.value != rhs.value {
+                return lhs.value > rhs.value
+            }
+            return lhs.key < rhs.key
+        }
+        return rankedLanguages.first(where: { !normalizedIgnoredLanguages.contains($0.key) })?.key
+            ?? rankedLanguages.first?.key
+    }
+
     public static func languagesAreEquivalent(_ lhs: String, _ rhs: String) -> Bool {
         let lhsParts = self.languageComponents(lhs)
         let rhsParts = self.languageComponents(rhs)
