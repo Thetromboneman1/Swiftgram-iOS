@@ -31,6 +31,14 @@ Release evidence:
 
 Physical feature behavior still requires the owner-assisted checklist in [NATIVE-PRIVACY-TOOLS.md](NATIVE-PRIVACY-TOOLS.md).
 
+## Whole-chat translation follow-up
+
+Physical testing of build `1787335827` exposed a second Natural Language classification edge case. Russian Cyrillic messages in a long chat were detected as Finnish. The whole-chat caller also discarded the chat's known `ru` source by passing `fromLang: nil`, so Apple correctly rejected the resulting unavailable `fi` to `en` pair and left those messages untranslated.
+
+The follow-up fix centralizes script-safe source resolution in `BonemanTranslationPolicy`, retains a compatible Cyrillic chat source when per-message detection drifts to another script, and forwards the known chat source into the local-only translation request. Regression coverage proves the observed Cyrillic-as-Finnish case resolves to Russian while genuine Finnish Latin text remains Finnish. Focused tests, the translation policy gate, repository validation, and full simulator build `1787337001` passed before the replacement signed-device build.
+
+Screenshots with blank message bodies are separate from translation. Telegram suppresses captured message content in chats with content-saving protection enabled, such as the upstream `Restrict Saving Content` policy. Swiftgram's Privacy Tools do not remove message text from screenshots.
+
 ## Reinstall command
 
 After verification, extract the staged IPA into a private temporary directory and install the `.app`, not the IPA ZIP:

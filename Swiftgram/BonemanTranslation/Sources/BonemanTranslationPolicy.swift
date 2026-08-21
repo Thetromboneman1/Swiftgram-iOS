@@ -33,6 +33,31 @@ public enum BonemanTranslationPolicy {
         return true
     }
 
+    /// Uses a chat-level source as a script-safe fallback when per-message recognition drifts to
+    /// an incompatible script. Short Cyrillic chat messages have been observed on device as
+    /// Finnish, which makes an otherwise installed Russian-to-English pair appear unsupported.
+    public static func resolvedSourceLanguage(
+        text: String,
+        detectedLanguage: String?,
+        preferredLanguage: String?
+    ) -> String? {
+        let detectedLanguage = detectedLanguage.map(self.canonicalLanguageIdentifier)
+        let containsCyrillic = text.unicodeScalars.contains { scalar in
+            return (0x0400 ... 0x052f).contains(Int(scalar.value))
+        }
+        let cyrillicLanguages: Set<String> = ["be", "bg", "kk", "ky", "mk", "mn", "ru", "sr", "tg", "uk"]
+        guard let preferredLanguage = preferredLanguage.map(self.canonicalLanguageIdentifier) else {
+            if containsCyrillic, let detectedLanguage, ["bg", "kk"].contains(detectedLanguage) {
+                return "ru"
+            }
+            return detectedLanguage
+        }
+        if containsCyrillic, cyrillicLanguages.contains(preferredLanguage) {
+            return preferredLanguage
+        }
+        return detectedLanguage ?? preferredLanguage
+    }
+
     public static func languagesAreEquivalent(_ lhs: String, _ rhs: String) -> Bool {
         let lhsParts = self.languageComponents(lhs)
         let rhsParts = self.languageComponents(rhs)

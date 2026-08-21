@@ -40,6 +40,28 @@ final class BonemanTranslationPolicyTests: XCTestCase {
         XCTAssertEqual(BonemanTranslationPolicy.canonicalLanguageIdentifier("pt_br"), "pt-BR")
         XCTAssertEqual(BonemanTranslationPolicy.canonicalLanguageIdentifier("nb-NO"), "no-NO")
     }
+
+    func testCyrillicChatSourceOverridesIncompatiblePerMessageDetection() {
+        XCTAssertEqual(
+            BonemanTranslationPolicy.resolvedSourceLanguage(
+                text: "Привет",
+                detectedLanguage: "fi",
+                preferredLanguage: "ru"
+            ),
+            "ru"
+        )
+    }
+
+    func testChatSourceDoesNotOverrideAnotherScript() {
+        XCTAssertEqual(
+            BonemanTranslationPolicy.resolvedSourceLanguage(
+                text: "Hyvää päivää",
+                detectedLanguage: "fi",
+                preferredLanguage: "ru"
+            ),
+            "fi"
+        )
+    }
 }
 
 final class BonemanTranslationCacheTests: XCTestCase {

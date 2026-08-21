@@ -26,7 +26,9 @@ if rg --line-number --ignore-case --glob '*.swift' "${banned_network_pattern}" "
 fi
 
 cache_file="${source_root}/TranslationCache.swift"
+policy_file="${source_root}/BonemanTranslationPolicy.swift"
 [[ -f "${cache_file}" ]] || fail "missing in-memory TranslationCache.swift"
+[[ -f "${policy_file}" ]] || fail "missing BonemanTranslationPolicy.swift"
 if rg --line-number 'FileManager|UserDefaults|SQLite|write\(to:|Data\(contentsOf:' "${cache_file}"; then
     fail "translation cache must remain process-memory-only"
 fi
@@ -143,8 +145,12 @@ rg --fixed-strings --quiet '[weak self, batch]' "${service_file}" \
     || fail "Apple serial work does not retain its batch coordinator until results are persisted"
 rg --quiet 'resolvedAppleTranslationLanguage' "${service_file}" \
     || fail "whole-chat Apple translation lacks chat-source fallback for misclassified Cyrillic slang"
-rg --fixed-strings --quiet '["bg", "kk"]' "${service_file}" \
+rg --fixed-strings --quiet '["bg", "kk"]' "${policy_file}" \
     || fail "observed Bulgarian and Kazakh misclassification fallback is missing"
+rg --fixed-strings --quiet 'detectedLanguage: "fi"' "${test_root}" \
+    || fail "tests do not cover the observed Cyrillic-to-Finnish misclassification"
+rg --fixed-strings --quiet 'fromLang: fromLang' "${chat_file}" \
+    || fail "whole-chat Apple translation discards its known chat source language"
 rg --quiet 'case[[:space:]]+system' "${simple_settings_file}" \
     || fail "Swiftgram settings do not expose the Apple system backend"
 rg --quiet 'value[[:space:]]*==[[:space:]]*\.system' "${settings_file}" \

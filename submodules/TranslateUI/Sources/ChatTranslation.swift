@@ -277,7 +277,7 @@ public func translateMessageIds(context: AccountContext, messageIds: [EngineMess
             }
             return context.engine.messages.translateMessages(
                 messageIds: appleMessageIds,
-                fromLang: nil,
+                fromLang: fromLang,
                 toLang: toLang,
                 enableLocalIfPossible: false,
                 localOnly: true

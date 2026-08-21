@@ -183,26 +183,11 @@ private func detectedAppleTranslationLanguage(for text: String) -> String? {
 
 private func resolvedAppleTranslationLanguage(for text: String, preferredLanguage: String?) -> String? {
     let detectedLanguage = detectedAppleTranslationLanguage(for: text)
-    // Short Russian chat slang is frequently classified as another Cyrillic language (observed
-    // as Bulgarian and Kazakh on device), even when the chat-level detector correctly reports
-    // Russian. Prefer the chat source only when the message actually uses Cyrillic and the local
-    // detector also chose a Cyrillic language. Other scripts keep their per-message detection.
-    let containsCyrillic = text.unicodeScalars.contains { scalar in
-        return (0x0400 ... 0x052f).contains(Int(scalar.value))
-    }
-    let cyrillicLanguages: Set<String> = ["be", "bg", "kk", "ky", "mk", "mn", "ru", "sr", "tg", "uk"]
-    if containsCyrillic, let detectedLanguage, ["bg", "kk"].contains(normalizeTranslationLanguage(detectedLanguage)), preferredLanguage == nil {
-        return "ru"
-    }
-    guard let preferredLanguage else {
-        return detectedLanguage
-    }
-    if containsCyrillic,
-       cyrillicLanguages.contains(normalizeTranslationLanguage(preferredLanguage)),
-       detectedLanguage.map({ cyrillicLanguages.contains(normalizeTranslationLanguage($0)) }) ?? true {
-        return normalizeTranslationLanguage(preferredLanguage)
-    }
-    return detectedLanguage ?? normalizeTranslationLanguage(preferredLanguage)
+    return BonemanTranslationPolicy.resolvedSourceLanguage(
+        text: text,
+        detectedLanguage: detectedLanguage,
+        preferredLanguage: preferredLanguage
+    )
 }
 
 public func shouldScheduleAppleTranslation(text: String, toLanguage: String) -> Bool {
