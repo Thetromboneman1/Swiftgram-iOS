@@ -18,10 +18,12 @@ swift_library(
     deps = [
         "//Swiftgram/SGItemListUI:SGItemListUI",
         "//Swiftgram/SGLogging:SGLogging",
+        "//Swiftgram/SGPrivacyTools:SGPrivacyTools",
         "//Swiftgram/SGSimpleSettings:SGSimpleSettings",
         "//Swiftgram/SGStrings:SGStrings",
 #        "//Swiftgram/SGAPI:SGAPI",
         "//Swiftgram/SGAPIToken:SGAPIToken",
+        "//Swiftgram/BonemanTranslation:BonemanTranslation",
         "//submodules/SSignalKit/SwiftSignalKit:SwiftSignalKit",
         "//submodules/Display:Display",
         "//submodules/Postbox:Postbox",

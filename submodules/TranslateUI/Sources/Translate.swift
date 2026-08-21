@@ -406,6 +406,7 @@ private struct TranslationViewImpl: View {
                 }
                 switch status {
                 case .unsupported:
+                    BonemanTranslationDiagnostics.shared.recordModelStatus("unsupported", sourceLanguage: work.key.sourceLanguage, targetLanguage: work.key.targetLanguage)
                     print("[BonemanTranslation] unavailable pair=\(work.key.sourceLanguage ?? "auto")->\(work.key.targetLanguage)")
                     // Unsupported pairs must be visible to the caller. Treating this as a skipped
                     // message stores an empty terminal translation and makes the chat appear
@@ -413,6 +414,7 @@ private struct TranslationViewImpl: View {
                     self.complete(work: work, result: .failed)
                     return
                 case .supported:
+                    BonemanTranslationDiagnostics.shared.recordModelStatus("supported, download may be required", sourceLanguage: work.key.sourceLanguage, targetLanguage: work.key.targetLanguage)
                     // Apple owns the language-resource consent and download UI. Message content
                     // remains in TranslationSession and is not sent to a translation service.
                     // prepareTranslation requires an explicit source language. A nil-source
@@ -422,8 +424,10 @@ private struct TranslationViewImpl: View {
                         try await session.prepareTranslation()
                     }
                 case .installed:
+                    BonemanTranslationDiagnostics.shared.recordModelStatus("installed", sourceLanguage: work.key.sourceLanguage, targetLanguage: work.key.targetLanguage)
                     break
                 @unknown default:
+                    BonemanTranslationDiagnostics.shared.recordModelStatus("unknown", sourceLanguage: work.key.sourceLanguage, targetLanguage: work.key.targetLanguage)
                     print("[BonemanTranslation] unknown availability pair=\(work.key.sourceLanguage ?? "auto")->\(work.key.targetLanguage)")
                     self.complete(work: work, result: .failed)
                     return
@@ -506,9 +510,11 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
             }
         }
 
-        func cancel() {
+        func cancel() -> Bool {
+            let wasPending = self.completion != nil
             self.cancelled = true
             self.completion = nil
+            return wasPending
         }
     }
     
@@ -599,6 +605,7 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
                 cachedResults: cachedResults,
                 completion: onResult
             )
+            BonemanTranslationDiagnostics.shared.recordBatch(sourceLanguage: requestedSourceLanguage, targetLanguage: targetLanguage, pendingCount: inputKeysByCacheKey.count)
             for cacheKey in inputKeysByCacheKey.keys {
                 // The queue must retain the batch until every serial work item resolves. A weak
                 // batch here deallocates the coordinator as soon as translate() returns, so Apple
@@ -612,9 +619,18 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
                     case .failed:
                         break
                     }
+                    let opaqueIds: [String]
+                    if case .failed = result {
+                        opaqueIds = (inputKeysByCacheKey[cacheKey] ?? []).map(BonemanTranslationDiagnostics.opaqueMessageId)
+                    } else {
+                        opaqueIds = []
+                    }
+                    BonemanTranslationDiagnostics.shared.recordResult(result, failedOpaqueIds: opaqueIds, remainingCount: max(0, self?.workQueue.count ?? 0))
                     batch.resolve(key: cacheKey, result: result)
                 })
                 if !accepted {
+                    let opaqueIds = (inputKeysByCacheKey[cacheKey] ?? []).map(BonemanTranslationDiagnostics.opaqueMessageId)
+                    BonemanTranslationDiagnostics.shared.recordResult(.failed, failedOpaqueIds: opaqueIds, remainingCount: self.workQueue.count)
                     batch.resolve(key: cacheKey, result: .failed)
                 }
             }
@@ -624,8 +640,11 @@ public final class ExperimentalInternalTranslationServiceImpl: ExperimentalInter
 
             return ActionDisposable { [weak self, batch] in
                 Queue.mainQueue().async {
-                    batch.cancel()
+                    let wasPending = batch.cancel()
                     self?.workQueue.cancel(subscriberId: subscriberId)
+                    if wasPending {
+                        BonemanTranslationDiagnostics.shared.recordCancelled()
+                    }
                 }
             }
         }

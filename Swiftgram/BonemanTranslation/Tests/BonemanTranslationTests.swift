@@ -201,3 +201,16 @@ final class BonemanTranslationWorkQueueTests: XCTestCase {
         XCTAssertEqual(queue.count, 1)
     }
 }
+
+final class BonemanTranslationDiagnosticsTests: XCTestCase {
+    func testReportContainsOperationalStateWithoutMessageText() {
+        let diagnostics = BonemanTranslationDiagnostics()
+        diagnostics.recordBatch(sourceLanguage: "ru", targetLanguage: "en", pendingCount: 2)
+        diagnostics.recordModelStatus("installed", sourceLanguage: "ru", targetLanguage: "en")
+        diagnostics.recordResult(.failed, failedOpaqueIds: ["abc123"], remainingCount: 1)
+        let report = diagnostics.snapshot().redactedReport
+        XCTAssertTrue(report.contains("ru->en"))
+        XCTAssertTrue(report.contains("abc123"))
+        XCTAssertFalse(report.contains("secret message"))
+    }
+}

@@ -3,6 +3,7 @@ import Postbox
 import SwiftSignalKit
 import TelegramApi
 import MtProtoKit
+import SGPrivacyTools
 
 
 public struct PeerActivitySpace: Hashable {
@@ -142,6 +143,9 @@ private func actionFromActivity(_ activity: PeerInputActivity?) -> Api.SendMessa
 }
 
 private func requestActivity(postbox: Postbox, network: Network, accountPeerId: PeerId, peerId: PeerId, threadId: Int64?, activity: PeerInputActivity?) -> Signal<Void, NoError> {
+    if let activity, let privateActivity = privateActivityKind(activity), SGPrivacySettings.shared.shouldSuppress(accountPeerId: accountPeerId.toInt64(), peerId: peerId.toInt64(), activity: privateActivity) {
+        return .complete()
+    }
     return postbox.transaction { transaction -> Signal<Void, NoError> in
         if let peer = transaction.getPeer(peerId) {
             if peerId == accountPeerId {
@@ -204,4 +208,19 @@ private func requestActivity(postbox: Postbox, network: Network, accountPeerId: 
             return .complete()
         }
     } |> switchToLatest
+}
+
+private func privateActivityKind(_ activity: PeerInputActivity) -> SGPrivateActivityKind? {
+    switch activity {
+    case .typingText, .choosingSticker:
+        return .typing
+    case .recordingVoice, .recordingInstantVideo:
+        return .recording
+    case .uploadingFile, .uploadingPhoto, .uploadingVideo, .uploadingInstantVideo:
+        return .uploading
+    case .interactingWithEmoji, .seeingEmojiInteraction:
+        return .emojiInteraction
+    case .playingGame, .speakingInGroupCall:
+        return nil
+    }
 }

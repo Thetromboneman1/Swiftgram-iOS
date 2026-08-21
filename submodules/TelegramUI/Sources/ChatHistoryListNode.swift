@@ -1,4 +1,5 @@
 import SGSimpleSettings
+import SGPrivacyTools
 import Foundation
 import UIKit
 import SwiftSignalKit
@@ -969,6 +970,15 @@ public final class ChatHistoryListNodeImpl: ASDisplayNode, ChatHistoryNode, Chat
             return nil
         }
 
+        if SGPrivacySettings.shared.hideSponsoredMessages {
+            adMessages = adMessages
+            |> map { value in
+                let filteredMessages = value.messages.filter { message in
+                    return message.adAttribute?.messageType != .sponsored
+                }
+                return (value.interPostInterval, filteredMessages, value.startDelay, value.betweenDelay)
+            }
+        }
         self.beginAdMessageManagement(adMessages: adMessages)
         
         self.listView.accessibilityPageScrolledString = { [weak self] row, count in

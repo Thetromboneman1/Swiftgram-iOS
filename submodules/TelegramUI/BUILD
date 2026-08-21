@@ -13,6 +13,7 @@ sgdeps = [
     "//Swiftgram/SGSimpleSettings:SGSimpleSettings",
     "//Swiftgram/SFSafariViewControllerPlus:SFSafariViewControllerPlus",
     "//Swiftgram/SGLogging:SGLogging",
+    "//Swiftgram/SGPrivacyTools:SGPrivacyTools",
     "//Swiftgram/SGStrings:SGStrings",
     "//Swiftgram/SGActionRequestHandlerSanitizer:SGActionRequestHandlerSanitizer",
     "//Swiftgram/Wrap:Wrap",

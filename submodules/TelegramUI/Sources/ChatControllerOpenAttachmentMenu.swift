@@ -39,6 +39,7 @@ import RichTextAttachmentScreen
 import RichTextEditorMessageConversion
 import ChatRichTextEditorComposer
 import Postbox
+import AVFoundation
 
 extension ChatControllerImpl {
     enum AttachMenuSubject {
@@ -1481,6 +1482,7 @@ extension ChatControllerImpl {
                                 }
                             }
 
+                            let sendNormally = {
                             var groupingKey: Int64?
                             var fileTypes: (music: Bool, other: Bool) = (false, false)
                             if results.count > 1 {
@@ -1544,11 +1546,99 @@ extension ChatControllerImpl {
                                     })
                                 }
                             }
+                            }
+
+                            let hasSelectedItem = results.count == 1 && results[0] != nil
+                            let selectedUrl = urls.count == 1 ? urls[0] : nil
+                            let voiceExtensions: Set<String> = ["aac", "flac", "m4a", "mp3", "mp4", "mov", "mpeg", "wav"]
+                            if !editingMessage, hasSelectedItem, let selectedUrl, voiceExtensions.contains(selectedUrl.pathExtension.lowercased()) {
+                                let actionSheet = ActionSheetController(presentationData: strongSelf.presentationData)
+                                actionSheet.setItemGroups([
+                                    ActionSheetItemGroup(items: [
+                                        ActionSheetButtonItem(title: "Send normally", action: { [weak actionSheet] in
+                                            actionSheet?.dismissAnimated()
+                                            sendNormally()
+                                        }),
+                                        ActionSheetButtonItem(title: "Extract audio and send as voice", action: { [weak strongSelf, weak actionSheet] in
+                                            actionSheet?.dismissAnimated()
+                                            strongSelf?.sendICloudFileAsVoice(url: selectedUrl)
+                                        })
+                                    ]),
+                                    ActionSheetItemGroup(items: [
+                                        ActionSheetButtonItem(title: strongSelf.presentationData.strings.Common_Cancel, color: .accent, font: .bold, action: { [weak actionSheet] in
+                                            actionSheet?.dismissAnimated()
+                                        })
+                                    ])
+                                ])
+                                strongSelf.present(actionSheet, in: .window(.root))
+                            } else {
+                                sendNormally()
+                            }
                         }
                     }))
                 }
             }), in: .window(.root))
         })
+    }
+
+    private func sendICloudFileAsVoice(url: URL) {
+        guard url.startAccessingSecurityScopedResource() else {
+            self.present(textAlertController(context: self.context, title: "Unable to access file", text: "Choose the file again and keep it available in Files.", actions: [TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+            return
+        }
+
+        let asset = AVURLAsset(url: url)
+        guard asset.tracks(withMediaType: .audio).first != nil,
+              let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetAppleM4A) else {
+            url.stopAccessingSecurityScopedResource()
+            self.present(textAlertController(context: self.context, title: "No audio track", text: "This file does not contain an audio track that can be sent as a voice message.", actions: [TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+            return
+        }
+
+        let outputUrl = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("swiftgram-voice-\(UUID().uuidString).m4a")
+        exportSession.outputURL = outputUrl
+        exportSession.outputFileType = .m4a
+        exportSession.shouldOptimizeForNetworkUse = true
+
+        let statusController = OverlayStatusController(theme: self.presentationData.theme, type: .loading(cancelled: nil))
+        self.present(statusController, in: .window(.root))
+        exportSession.exportAsynchronously { [weak self, weak statusController] in
+            let status = exportSession.status
+            let duration = max(1, Int(CMTimeGetSeconds(asset.duration)))
+            url.stopAccessingSecurityScopedResource()
+            Queue.mainQueue().async {
+                statusController?.dismiss()
+                guard let self else {
+                    return
+                }
+                guard status == .completed,
+                      let attributes = try? FileManager.default.attributesOfItem(atPath: outputUrl.path),
+                      let fileSize = attributes[.size] as? NSNumber else {
+                    self.present(textAlertController(context: self.context, title: "Audio extraction failed", text: "The selected file could not be converted to a voice message.", actions: [TextAlertAction(type: .defaultAction, title: self.presentationData.strings.Common_OK, action: {})]), in: .window(.root))
+                    return
+                }
+
+                let randomId = Int64.random(in: Int64.min ... Int64.max)
+                let resource = LocalFileReferenceMediaResource(localFilePath: outputUrl.path, randomId: randomId)
+                let file = TelegramMediaFile(
+                    fileId: EngineMedia.Id(namespace: Namespaces.Media.LocalFile, id: randomId),
+                    partialReference: nil,
+                    resource: resource,
+                    previewRepresentations: [],
+                    videoThumbnails: [],
+                    immediateThumbnailData: nil,
+                    mimeType: "audio/mp4",
+                    size: fileSize.int64Value,
+                    attributes: [.Audio(isVoice: true, duration: duration, title: nil, performer: nil, waveform: nil)],
+                    alternativeRepresentations: []
+                )
+                let replyMessageSubject = self.presentationInterfaceState.interfaceState.replyMessageSubject
+                let message: EnqueueMessage = .message(text: "", attributes: [], inlineStickers: [:], mediaReference: .standalone(media: file), threadId: self.chatLocation.threadId, replyToMessageId: replyMessageSubject?.subjectModel, replyToStoryId: nil, localGroupingKey: nil, correlationId: nil, bubbleUpEmojiOrStickersets: [])
+                self.presentPaidMessageAlertIfNeeded(completion: { [weak self] postpone in
+                    self?.sendMessages([message], postpone: postpone)
+                })
+            }
+        }
     }
 
     func presentFileMediaPickerOptions(editingMessage: Bool) {

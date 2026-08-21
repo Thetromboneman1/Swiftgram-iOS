@@ -4,6 +4,7 @@ import SwiftSignalKit
 import TelegramApi
 import MtProtoKit
 import EncryptionProvider
+import SGPrivacyTools
 
 private func reactionGeneratedEvent(_ previousReactions: ReactionsMessageAttribute?, _ updatedReactions: ReactionsMessageAttribute?, message: Message, transaction: Transaction) -> (reactionAuthor: Peer, reaction: MessageReaction.Reaction, message: Message, timestamp: Int32)? {
     if let updatedReactions = updatedReactions, !message.flags.contains(.Incoming), message.id.peerId.namespace == Namespaces.Peer.CloudUser {
@@ -4440,6 +4441,9 @@ func replayFinalState(
                     }
                 }
             case let .DeleteMessagesWithGlobalIds(ids):
+                for id in transaction.messageIdsForGlobalIds(ids) {
+                    SGEditHistoryStore.shared.removeHistory(for: SGEditHistoryMessageKey(accountPeerId: accountPeerId.toInt64(), peerId: id.peerId.toInt64(), namespace: id.namespace, id: id.id))
+                }
                 var resourceIds: [MediaResourceId] = []
                 transaction.deleteMessagesWithGlobalIds(ids, forEachMedia: { media in
                     addMessageMediaResourceIdsToRemove(media: media, resourceIds: &resourceIds)
@@ -4449,6 +4453,9 @@ func replayFinalState(
                 }
                 deletedMessageIds.append(contentsOf: ids.map { .global($0) })
             case let .DeleteMessages(ids):
+                for id in ids {
+                    SGEditHistoryStore.shared.removeHistory(for: SGEditHistoryMessageKey(accountPeerId: accountPeerId.toInt64(), peerId: id.peerId.toInt64(), namespace: id.namespace, id: id.id))
+                }
                 _internal_deleteMessages(transaction: transaction, mediaBox: mediaBox, ids: ids, manualAddMessageThreadStatsDifference: { id, add, remove in
                     addMessageThreadStatsDifference(threadKey: id, remove: remove, addedMessagePeer: nil, addedMessageId: nil, isOutgoing: false)
                 })
@@ -4488,6 +4495,11 @@ func replayFinalState(
             case let .EditMessage(id, message):
                 var generatedEvent: (reactionAuthor: Peer, reaction: MessageReaction.Reaction, message: Message, timestamp: Int32)?
                 transaction.updateMessage(id, update: { previousMessage in
+                    SGEditHistoryStore.shared.recordPreviousText(
+                        previousMessage.text,
+                        for: SGEditHistoryMessageKey(accountPeerId: accountPeerId.toInt64(), peerId: id.peerId.toInt64(), namespace: id.namespace, id: id.id),
+                        updatedText: message.text
+                    )
                     var updatedFlags = message.flags
                     var updatedLocalTags = message.localTags
                     var updatedAttributes = message.attributes

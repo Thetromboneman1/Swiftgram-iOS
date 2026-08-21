@@ -1,5 +1,6 @@
 import SGStrings
 import SGSimpleSettings
+import SGPrivacyTools
 import PeerInfoUI
 import Foundation
 import UIKit
@@ -1578,6 +1579,65 @@ func contextMenuForChatPresentationInterfaceState(chatPresentationInterfaceState
             actions.append(showJsonAction)
         } else {
             sgActions.append(showJsonAction)
+        }
+
+        if SGPrivacySettings.shared.hasAnyGhostModeEnabled, message.id.peerId != context.account.peerId {
+            let isException = SGPrivacySettings.shared.isPeerException(accountPeerId: context.account.peerId.toInt64(), peerId: message.id.peerId.toInt64())
+            actions.append(.action(ContextMenuActionItem(
+                text: isException ? "Use Ghost Mode in this chat" : "Allow activity in this chat",
+                icon: { theme in
+                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Privacy"), color: theme.actionSheet.primaryTextColor)
+                        ?? generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Settings"), color: theme.actionSheet.primaryTextColor)
+                },
+                action: { _, f in
+                    SGPrivacySettings.shared.setPeerException(accountPeerId: context.account.peerId.toInt64(), peerId: message.id.peerId.toInt64(), value: !isException)
+                    controllerInteraction.displayUndo(.info(
+                        title: nil,
+                        text: isException ? "Ghost Mode will apply in this chat." : "Typing, recording, upload, and emoji activity are allowed in this chat.",
+                        timeout: nil,
+                        customUndoText: nil
+                    ))
+                    f(.default)
+                }
+            )))
+        }
+
+        let editHistoryKey = SGEditHistoryMessageKey(
+            accountPeerId: context.account.peerId.toInt64(),
+            peerId: message.id.peerId.toInt64(),
+            namespace: message.id.namespace,
+            id: message.id.id
+        )
+        let editHistory = SGEditHistoryStore.shared.revisions(for: editHistoryKey)
+        if !editHistory.isEmpty {
+            actions.append(.action(ContextMenuActionItem(
+                text: "Edit History (\(editHistory.count))",
+                icon: { theme in
+                    return generateTintedImage(image: UIImage(bundleImageName: "Chat/Context Menu/Edit"), color: theme.actionSheet.primaryTextColor)
+                },
+                action: { _, f in
+                    f(.default)
+                    let formatter = DateFormatter()
+                    formatter.dateStyle = .medium
+                    formatter.timeStyle = .short
+                    let historyText = editHistory.enumerated().map { index, revision in
+                        let date = formatter.string(from: Date(timeIntervalSince1970: TimeInterval(revision.capturedAt)))
+                        return "\(index + 1). \(date)\n\(revision.text)"
+                    }.joined(separator: "\n\n")
+                    let alert = textAlertController(
+                        context: context,
+                        title: "Local Edit History",
+                        text: historyText,
+                        actions: [
+                            TextAlertAction(type: .genericAction, title: context.sharedContext.currentPresentationData.with { $0 }.strings.Common_Close, action: {}),
+                            TextAlertAction(type: .destructiveAction, title: "Clear", action: {
+                                SGEditHistoryStore.shared.removeHistory(for: editHistoryKey)
+                            })
+                        ]
+                    )
+                    controllerInteraction.presentControllerInCurrent(alert, nil)
+                }
+            )))
         }
         
         var threadId: Int64?

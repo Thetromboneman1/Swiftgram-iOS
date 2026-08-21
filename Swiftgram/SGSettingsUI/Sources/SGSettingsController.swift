@@ -3,6 +3,8 @@ import SGLogging
 import SGSimpleSettings
 import SGStrings
 import SGAPIToken
+import SGPrivacyTools
+import BonemanTranslation
 
 import SGItemListUI
 import Foundation
@@ -33,6 +35,7 @@ private enum SGControllerSection: Int32, SGItemListSection {
     case folders
     case chatList
     case profiles
+    case privacy
     case stories
     case translation
     case voiceMessages
@@ -107,6 +110,13 @@ private enum SGBoolSetting: String {
     case nyStyleSnow
     case nyStyleLightning
     case tabBarSearchEnabled
+    case ghostHideTyping
+    case ghostHideRecording
+    case ghostHideUploading
+    case ghostHideEmojiInteractions
+    case ghostHideOnlineStatus
+    case hideSponsoredMessages
+    case retainEditHistory
 }
 
 private enum SGOneFromManySetting: String {
@@ -204,6 +214,19 @@ private func SGControllerEntries(presentationData: PresentationData, callListSet
     entries.append(.notice(id: id.count, section: .profiles, text: i18n("Settings.ShowCreationDate.Notice", lang)))
     entries.append(.toggle(id: id.count, section: .profiles, settingName: .confirmCalls, value: SGSimpleSettings.shared.confirmCalls, text: i18n("Settings.CallConfirmation", lang), enabled: true))
     entries.append(.notice(id: id.count, section: .profiles, text: i18n("Settings.CallConfirmation.Notice", lang)))
+
+    entries.append(.header(id: id.count, section: .privacy, text: "PRIVACY TOOLS", badge: newStr))
+    entries.append(.toggle(id: id.count, section: .privacy, settingName: .ghostHideTyping, value: SGPrivacySettings.shared.hideTyping, text: "Ghost Mode: Hide typing", enabled: true))
+    entries.append(.toggle(id: id.count, section: .privacy, settingName: .ghostHideRecording, value: SGPrivacySettings.shared.hideRecording, text: "Ghost Mode: Hide voice/video recording", enabled: true))
+    entries.append(.toggle(id: id.count, section: .privacy, settingName: .ghostHideUploading, value: SGPrivacySettings.shared.hideUploading, text: "Ghost Mode: Hide file/media uploads", enabled: true))
+    entries.append(.toggle(id: id.count, section: .privacy, settingName: .ghostHideEmojiInteractions, value: SGPrivacySettings.shared.hideEmojiInteractions, text: "Ghost Mode: Hide emoji interactions", enabled: true))
+    entries.append(.toggle(id: id.count, section: .privacy, settingName: .ghostHideOnlineStatus, value: SGPrivacySettings.shared.hideOnlineStatus, text: "Ghost Mode: Hide online status", enabled: true))
+    entries.append(.notice(id: id.count, section: .privacy, text: "Per-chat Ghost Mode exceptions are available from a message's context menu. Online status is account-wide because Telegram does not support per-chat presence."))
+    entries.append(.toggle(id: id.count, section: .privacy, settingName: .hideSponsoredMessages, value: SGPrivacySettings.shared.hideSponsoredMessages, text: "Hide sponsored Telegram messages", enabled: true))
+    entries.append(.toggle(id: id.count, section: .privacy, settingName: .retainEditHistory, value: SGPrivacySettings.shared.retainEditHistory, text: "Keep local edit history", enabled: true))
+    entries.append(.notice(id: id.count, section: .privacy, text: "Stores up to 5 previous text versions per message for 30 days on this device. Deleted and auto-expired messages are removed."))
+    entries.append(.action(id: id.count, section: .privacy, actionType: AnyHashable("translationDiagnostics"), text: "Translation Diagnostics", kind: .generic))
+    entries.append(.action(id: id.count, section: .privacy, actionType: AnyHashable("clearEditHistory"), text: "Clear all edit history", kind: .destructive))
     
     entries.append(.header(id: id.count, section: .stories, text: strings.AutoDownloadSettings_Stories.uppercased(), badge: nil))
     entries.append(.toggle(id: id.count, section: .stories, settingName: .hideStories, value: SGSimpleSettings.shared.hideStories, text: i18n("Settings.Stories.Hide", lang), enabled: true))
@@ -525,6 +548,20 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
         case .nyStyleLightning:
             SGSimpleSettings.shared.nyStyle = value ? SGSimpleSettings.NYStyle.lightning.rawValue : SGSimpleSettings.NYStyle.default.rawValue
             simplePromise.set(true) // Trigger update for 'enabled' field of other toggles
+        case .ghostHideTyping:
+            SGPrivacySettings.shared.hideTyping = value
+        case .ghostHideRecording:
+            SGPrivacySettings.shared.hideRecording = value
+        case .ghostHideUploading:
+            SGPrivacySettings.shared.hideUploading = value
+        case .ghostHideEmojiInteractions:
+            SGPrivacySettings.shared.hideEmojiInteractions = value
+        case .ghostHideOnlineStatus:
+            SGPrivacySettings.shared.hideOnlineStatus = value
+        case .hideSponsoredMessages:
+            SGPrivacySettings.shared.hideSponsoredMessages = value
+        case .retainEditHistory:
+            SGPrivacySettings.shared.retainEditHistory = value
         }
     }, updateSliderValue: { setting, value in
         switch (setting) {
@@ -696,6 +733,45 @@ public func sgSettingsController(context: AccountContext/*, focusOnItemTag: Int?
                     strongContext.sharedContext.applicationBindings.openUrl(url)
                 })
         }
+    }, action: { action in
+        let presentationData = context.sharedContext.currentPresentationData.with { $0 }
+        if action == AnyHashable("translationDiagnostics") {
+            let snapshot = BonemanTranslationDiagnostics.shared.snapshot()
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
+            let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown"
+            let report = snapshot.redactedReport + "\nApp version: \(version) (\(build))\nBundle: \(Bundle.main.bundleIdentifier ?? "unknown")"
+            let controller = textAlertController(
+                context: context,
+                title: "Redacted Translation Diagnostics",
+                text: report,
+                actions: [
+                    TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Close, action: {}),
+                    TextAlertAction(type: .genericAction, title: "Copy", action: {
+                        UIPasteboard.general.string = report
+                    }),
+                    TextAlertAction(type: .destructiveAction, title: "Clear Logs", action: {
+                        BonemanTranslationDiagnostics.shared.clear()
+                        simplePromise.set(true)
+                    })
+                ]
+            )
+            presentControllerImpl?(controller, nil)
+            return
+        }
+        guard action == AnyHashable("clearEditHistory") else { return }
+        let controller = textAlertController(
+            context: context,
+            title: "Clear edit history?",
+            text: "This permanently removes all locally stored previous message versions for every account on this device.",
+            actions: [
+                TextAlertAction(type: .genericAction, title: presentationData.strings.Common_Cancel, action: {}),
+                TextAlertAction(type: .destructiveAction, title: "Clear", action: {
+                    SGEditHistoryStore.shared.removeAll()
+                    simplePromise.set(true)
+                })
+            ]
+        )
+        presentControllerImpl?(controller, nil)
     }, searchInput: { searchQuery in
         updateState { state in
             var updatedState = state

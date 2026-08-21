@@ -9,6 +9,7 @@ sgdeps = [
     "//Swiftgram/SGGHSettingsScheme:SGGHSettingsScheme",
     "//Swiftgram/SGConfig:SGConfig",
     "//Swiftgram/SGLogging:SGLogging",
+    "//Swiftgram/SGPrivacyTools:SGPrivacyTools",
 ]
 
 sgsrc = [
