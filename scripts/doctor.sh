@@ -333,7 +333,7 @@ fi
 
 if [[ "$host_only" -eq 0 ]]; then
     if [[ -x "$OP_CODEX" ]]; then
-        if "$OP_CODEX" item get "Telegram API" --vault "Boneman" --format json 2>"$doctor_temp/op.err" | jq -e '([.fields[] | select(.label == "App api_id")] | length == 1) and ([.fields[] | select(.label == "App api_hash")] | length == 1)' >/dev/null; then
+        if OP_LOAD_DESKTOP_APP_SETTINGS=false "$OP_CODEX" item get "Telegram API" --vault "Boneman" --format json 2>"$doctor_temp/op.err" | jq -e '([.fields[] | select(.label == "App api_id")] | length == 1) and ([.fields[] | select(.label == "App api_hash")] | length == 1)' >/dev/null; then
             ok "1Password item Boneman/Telegram API contains App api_id and App api_hash"
         else
             fail "op-codex could not verify the two required Telegram API fields in vault Boneman"

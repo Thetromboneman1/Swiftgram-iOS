@@ -30,6 +30,8 @@ Use the dedicated helper:
 
 The required location is vault `Boneman`, item `Telegram API`, fields `App api_id` and `App api_hash`.
 
+The guarded scripts set `OP_LOAD_DESKTOP_APP_SETTINGS=false` when invoking `op-codex`. This keeps service-account access independent of the desktop app and avoids a CLI 2.35 stall while loading desktop integration settings.
+
 Do not fall back to plain `op` or print the item. If the helper reports a missing vault, grant the Codex service account access to that vault. If it reports a missing field, fix the item metadata instead of hard-coding a value.
 
 ## Shell tracing is enabled

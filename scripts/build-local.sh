@@ -567,7 +567,7 @@ if [[ "$command_name" == "test" ]] || [[ "$command_name" == "simulator" ]]; then
         die "could not prepare the synthetic unsigned-safe build configuration"
     fi
 else
-    if ! "$OP_CODEX" inject \
+    if ! OP_LOAD_DESKTOP_APP_SETTINGS=false "$OP_CODEX" inject \
         --in-file "$template_path" \
         --out-file "$resolved_config" \
         --file-mode 0600 \

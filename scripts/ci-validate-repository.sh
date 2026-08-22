@@ -289,6 +289,7 @@ for required in (
     "configuration_cleanup_required",
     "'*.params'",
     "run-with-memory-guard.py",
+    "OP_LOAD_DESKTOP_APP_SETTINGS=false",
 ):
     if required not in build_local_text:
         raise SystemExit(f"repository-policy: private local build boundary is missing {required!r}")
