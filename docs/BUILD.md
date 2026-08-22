@@ -102,11 +102,14 @@ scripts/build-local.sh doctor \
   --require-device
 ```
 
-Run the focused translation tests:
+Run the focused translation and push-environment tests:
 
 ```bash
 scripts/build-local.sh test \
   --test-target //Swiftgram/BonemanTranslation:BonemanTranslationTests
+
+scripts/build-local.sh test \
+  --test-target //Swiftgram/SGPushEnvironment:SGPushEnvironmentTests
 ```
 
 Build for the Apple Silicon simulator:

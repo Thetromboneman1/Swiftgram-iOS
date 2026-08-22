@@ -656,6 +656,18 @@ plist_fragment(
 )
 
 plist_fragment(
+    name = "PushEnvironmentInfoPlist",
+    extension = "plist",
+    template =
+    """
+    <key>TelegramAPSEnvironment</key>
+    <string>{telegram_aps_environment}</string>
+    """.format(
+        telegram_aps_environment = telegram_aps_environment,
+    )
+)
+
+plist_fragment(
     name = "MtProtoKitInfoPlist",
     extension = "plist",
     template =
@@ -1947,6 +1959,7 @@ ios_application(
         ":VersionInfoPlist",
         ":RequiredDeviceCapabilitiesPlist",
         ":UrlTypesInfoPlist",
+        ":PushEnvironmentInfoPlist",
     ],
     app_icons = [ ":{}_icon".format(name) for name in composer_icon_folders ],
     alternate_icons = [

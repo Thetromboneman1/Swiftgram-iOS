@@ -59,6 +59,21 @@ Common causes:
 
 Do not disable entitlement validation. Fix the App ID, capability, profile, or bundle configuration.
 
+## Messages appear only after opening the app
+
+First confirm notification permission in iOS Settings, then inspect the signed main-app entitlement and Info.plist in the exact IPA. A development-signed build must have both:
+
+```text
+aps-environment = development
+TelegramAPSEnvironment = development
+```
+
+It must also contain `remote-notification` in `UIBackgroundModes`. Extensions must not carry `aps-environment`.
+
+Telegram's `account.registerDevice` `appSandbox` value must follow `TelegramAPSEnvironment`, not the compiler's Debug or Release mode. An optimized build signed with a development profile still receives a sandbox APNs token. Registering that token as production causes background delivery to fail while foreground synchronization continues to work.
+
+Never print or export the APNs token while diagnosing this path. Runtime evidence may record authorization status, token byte count, selected sandbox/production environment, and redacted registration result only.
+
 ## Device is paired but unavailable
 
 Inspect CoreDevice state:

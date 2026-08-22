@@ -45,6 +45,12 @@ Physical testing of build `1787338001` found a separate discovery failure in a m
 
 The chat detector previously cached the dominant ignored language for an hour and selected it ahead of any smaller foreign-language population. The replacement logic immediately recomputes ignored cached results and prefers the strongest non-ignored language, so an English-plus-Arabic chat exposes Arabic whole-chat translation. Apple mode also offers the eligible per-message Translate action without depending on the legacy cloud-oriented button preference. The path remains Apple `localOnly` with no cloud fallback. Regression tests cover dominant-English/minority-Arabic selection and the all-ignored fallback; full simulator build `1787339001` passed.
 
+## Development-signed Release push repair
+
+Physical testing of optimized build `1787340001` found that messages appeared only after Swiftgram returned to the foreground. The IPA itself was correctly signed with `aps-environment=development`, and the main app contained the `remote-notification` background mode. The failure was downstream of those capabilities: `SharedAccountContext` derived Telegram's `appSandbox` registration flag from `#if DEBUG`. An optimized development-signed build therefore registered its sandbox APNs token as a production token.
+
+The app now embeds the APNs environment resolved from the selected provisioning profile into its main Info.plist and uses that signing-derived value for both Telegram device registration and authorization-code push configuration. Development profiles use APNs sandbox in Debug and Release builds; production profiles continue to use production APNs. A compile-mode fallback remains only for legacy builds without the new metadata. Focused tests cover development, production, normalization, and fallback behavior. APNs token logging now records only token length, never the token value.
+
 ## Reinstall command
 
 After verification, extract the staged IPA into a private temporary directory and install the `.app`, not the IPA ZIP:

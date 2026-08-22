@@ -267,8 +267,10 @@ for required in (
     "trusted_validator_ref:",
     "../scripts/ci-validate-repository.sh",
     "--target=//Swiftgram/BonemanTranslation:BonemanTranslationTests",
+    "--target=//Swiftgram/SGPushEnvironment:SGPushEnvironmentTests",
     "jq '. + {sg_config: \"\"}'",
     "Boneman Translation XCTest execution confirmed",
+    "SG Push Environment XCTest execution confirmed",
     "persist-credentials: false",
 ):
     if required not in build_text:

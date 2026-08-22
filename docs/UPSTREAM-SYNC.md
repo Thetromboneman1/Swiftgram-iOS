@@ -68,7 +68,7 @@ It writes one workflow summary and one 30-day artifact containing Markdown and J
 It has repository-level `contents: read` only and performs two jobs:
 
 1. Repository and translation policy validation on Ubuntu.
-2. A focused Bazel XCTest run of `//Swiftgram/BonemanTranslation:BonemanTranslationTests` on macOS. All four expected test classes and a zero-failure aggregate are required.
+2. Focused Bazel XCTest runs of `//Swiftgram/BonemanTranslation:BonemanTranslationTests` and `//Swiftgram/SGPushEnvironment:SGPushEnvironmentTests` on macOS. The expected test classes and zero-failure aggregates are required.
 
 External actions are pinned to full commit SHAs. The policy job rejects unpinned actions, `pull_request_target`, write-all permissions, workflow secret references, tracked local build input, tracked IPA output, bad submodule state, and translation-boundary network references.
 

@@ -231,3 +231,31 @@ jobs:
               raise SystemExit("Boneman Translation XCTest log has no zero-failure execution summary")
           print(f"Boneman Translation XCTest execution confirmed: {matches[-1]} tests")
           PY
+
+          python3 build-system/Make/Make.py \
+            --overrideXcodeVersion \
+            --bazelUserRoot="${RUNNER_TEMP}/bazel-root" \
+            --cacheDir="${RUNNER_TEMP}/bazel-cache" \
+            test \
+            --configurationPath="${ci_configuration}" \
+            --codesigningInformationPath=build-system/fake-codesigning \
+            --target=//Swiftgram/SGPushEnvironment:SGPushEnvironmentTests
+
+          push_test_log="bazel-testlogs/Swiftgram/SGPushEnvironment/SGPushEnvironmentTests/test.log"
+          test -s "${push_test_log}"
+          python3 - "${push_test_log}" <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          text = pathlib.Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+          if "SGPushEnvironmentTests" not in text:
+              raise SystemExit("SG Push Environment XCTest class did not execute")
+          matches = re.findall(
+              r"Executed\s+([1-9][0-9]*)\s+tests?,\s+with\s+0\s+failures(?:\s+\([0-9]+\s+unexpected\))?",
+              text,
+          )
+          if not matches:
+              raise SystemExit("SG Push Environment XCTest log has no zero-failure execution summary")
+          print(f"SG Push Environment XCTest execution confirmed: {matches[-1]} tests")
+          PY
