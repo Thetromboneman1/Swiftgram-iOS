@@ -187,10 +187,11 @@ Do not run repository-wide code indexing, Gitleaks, Bazel, and Xcode compilation
 If messages catch up only after reopening the app, do not count that as a
 successful push test. It proves foreground synchronization, not APNs delivery.
 
-Swiftgram retries transient Telegram `account.registerDevice` failures with a
-bounded backoff and reports exhausted failures as failures so iOS can refresh
-the APNs token. VoIP registration completion is converted into an explicit
-completion value so it cannot suppress the downstream APNs recovery handler.
+Swiftgram gives each Telegram `account.registerDevice` request 15 seconds and
+retries transport or server failures with a capped backoff. Permanent errors
+are reported as failures so iOS can refresh the APNs token. VoIP registration
+completion is converted into an explicit completion value so it cannot
+suppress the downstream APNs recovery handler.
 Redacted device logs contain `Push Registration` start, APNs result, and
 completion entries with only the APNs environment, success state, and token
 length. They never contain the token itself.

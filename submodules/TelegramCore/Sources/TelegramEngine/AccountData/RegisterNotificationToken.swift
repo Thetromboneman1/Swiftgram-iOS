@@ -2,6 +2,7 @@ import Foundation
 import SwiftSignalKit
 import Postbox
 import TelegramApi
+import MtProtoKit
 
 
 public enum NotificationTokenType {
@@ -42,16 +43,20 @@ func _internal_registerNotificationToken(account: Account, token: Data, type: No
             flags |= 1 << 0
         }
         return account.network.request(Api.functions.account.registerDevice(flags: flags, tokenType: mappedType, token: hexString(token), appSandbox: sandbox ? .boolTrue : .boolFalse, secret: Buffer(data: keyData), otherUids: otherAccountUserIds.map({ $0._internalGetInt64Value() })))
+        |> timeout(15.0, queue: Queue.concurrentDefaultQueue(), alternate: .fail(MTRpcError(errorCode: -1000, errorDescription: "PUSH_REGISTRATION_TIMEOUT")))
         |> retry(retryOnError: { error in
-            return error.errorDescription != "TOKEN_WAS_INVALIDATED"
-        }, delayIncrement: 0.5, maxDelay: 5.0, maxRetries: 5, onQueue: Queue.concurrentDefaultQueue())
+            if error.errorDescription == "TOKEN_WAS_INVALIDATED" {
+                return false
+            }
+            return error.errorCode <= 0 || error.errorCode >= 500
+        }, delayIncrement: 1.0, maxDelay: 30.0, maxRetries: nil, onQueue: Queue.concurrentDefaultQueue())
         |> map { _ -> Bool in
             return true
         }
         |> `catch` { _ -> Signal<Bool, NoError> in
             // Never report a failed Telegram registration as successful. A false
             // result asks the app delegate to refresh the APNs token once, while
-            // transient failures have already received bounded retries above.
+            // transport failures continue with a capped backoff above.
             return .single(false)
         }
     }
