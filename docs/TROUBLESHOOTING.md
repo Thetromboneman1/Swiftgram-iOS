@@ -181,3 +181,17 @@ vm_stat
 ```
 
 Do not run repository-wide code indexing, Gitleaks, Bazel, and Xcode compilation at the same time. Run one large boundary at a time. If a non-build service is growing, stop that exact PID only after confirming its command. Do not use broad `pkill` patterns. Raise the build limits only when the measured compiler workload is legitimate and system memory pressure remains healthy.
+
+# Push registration stalls or messages only arrive after relaunch
+
+If messages catch up only after reopening the app, do not count that as a
+successful push test. It proves foreground synchronization, not APNs delivery.
+
+Swiftgram retries transient Telegram `account.registerDevice` failures with a
+bounded backoff and reports exhausted failures as failures so iOS can refresh
+the APNs token. Redacted device logs contain `Push Registration` start and
+completion entries with only the APNs environment, success state, and token
+length. They never contain the token itself.
+
+Physical acceptance still requires a new message to display while the phone is
+locked and Swiftgram has not been force-quit.

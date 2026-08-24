@@ -1657,6 +1657,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
     
     public func updateNotificationTokensRegistration() {
         let sandbox = SGPushEnvironment.isSandboxForCurrentApp
+        Logger.shared.log("Push Registration", "starting (environment: \(sandbox ? "development" : "production"))")
         
         let settings = self.accountManager.sharedData(keys: [ApplicationSpecificSharedDataKeys.inAppNotificationSettings])
         |> map { sharedData -> (allAccounts: Bool, includeMuted: Bool) in
@@ -1773,6 +1774,7 @@ public final class SharedAccountContextImpl: SharedAccountContext {
             guard let self, let appDelegate = self.appDelegate else {
                 return
             }
+            Logger.shared.log("Push Registration", "completed (success: \(allApsSuccess), tokenBytes: \(apsToken?.count ?? 0))")
             if !allApsSuccess {
                 if self.invalidatedApsToken != apsToken {
                     self.invalidatedApsToken = apsToken

@@ -42,15 +42,17 @@ func _internal_registerNotificationToken(account: Account, token: Data, type: No
             flags |= 1 << 0
         }
         return account.network.request(Api.functions.account.registerDevice(flags: flags, tokenType: mappedType, token: hexString(token), appSandbox: sandbox ? .boolTrue : .boolFalse, secret: Buffer(data: keyData), otherUids: otherAccountUserIds.map({ $0._internalGetInt64Value() })))
+        |> retry(retryOnError: { error in
+            return error.errorDescription != "TOKEN_WAS_INVALIDATED"
+        }, delayIncrement: 0.5, maxDelay: 5.0, maxRetries: 5, onQueue: Queue.concurrentDefaultQueue())
         |> map { _ -> Bool in
             return true
         }
-        |> `catch` { error -> Signal<Bool, NoError> in
-            if error.errorDescription == "TOKEN_WAS_INVALIDATED" {
-                return .single(false)
-            } else {
-                return .single(true)
-            }
+        |> `catch` { _ -> Signal<Bool, NoError> in
+            // Never report a failed Telegram registration as successful. A false
+            // result asks the app delegate to refresh the APNs token once, while
+            // transient failures have already received bounded retries above.
+            return .single(false)
         }
     }
 }
