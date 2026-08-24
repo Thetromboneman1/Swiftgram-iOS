@@ -1753,18 +1753,29 @@ public final class SharedAccountContextImpl: SharedAccountContext {
             |> map { values -> Bool in
                 return !values.contains(false)
             }
+            |> map { success -> Bool in
+                Logger.shared.log("Push Registration", "APNs result (success: \(success))")
+                return success
+            }
             
-            let allVoipSuccess = combineLatest(appliedVoipList)
+            // VoIP registration signals intentionally emit no values. Convert
+            // their completion into a value before combineLatest; otherwise the
+            // downstream APNs result handler can never run.
+            let allVoipCompleted = combineLatest(appliedVoipList.map { signal -> Signal<Void, NoError> in
+                return Signal<Void, NoError> { subscriber in
+                    return signal.start(completed: {
+                        subscriber.putNext(Void())
+                        subscriber.putCompletion()
+                    })
+                }
+            })
             
             return combineLatest(
                 allApsSuccess,
-                Signal<Void, NoError>.single(Void())
-                |> then(
-                    allVoipSuccess
-                    |> map { _ -> Void in
-                        return Void()
-                    }
-                )
+                allVoipCompleted
+                |> map { _ -> Void in
+                    return Void()
+                }
             )
             |> map { allApsSuccess, _ -> (Bool, Data?) in
                 return (allApsSuccess, apsNotificationToken)
