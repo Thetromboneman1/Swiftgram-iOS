@@ -192,6 +192,11 @@ retries transport or server failures with a capped backoff. Permanent errors
 are reported as failures so iOS can refresh the APNs token. VoIP registration
 completion is converted into an explicit completion value so it cannot
 suppress the downstream APNs recovery handler.
+
+Token registration waits until the account network reports `updating` or
+`online`. Starting `account.registerDevice` while the account is backgrounded
+can strand the request before Telegram's network becomes active, even when the
+chat list later catches up in the foreground.
 Redacted device logs contain `Push Registration` start, APNs result, and
 completion entries with only the APNs environment, success state, and token
 length. They never contain the token itself.

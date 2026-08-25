@@ -24,8 +24,26 @@ func _internal_unregisterNotificationToken(account: Account, token: Data, type: 
 }
 
 func _internal_registerNotificationToken(account: Account, token: Data, type: NotificationTokenType, sandbox: Bool, otherAccountUserIds: [PeerId.Id], excludeMutedChats: Bool) -> Signal<Bool, NoError> {
-    return masterNotificationsKey(account: account, ignoreDisabled: false)
-    |> mapToSignal { masterKey -> Signal<Bool, NoError> in
+    let networkReady = account.networkState
+    |> filter { state in
+        switch state {
+        case .online, .updating:
+            return true
+        default:
+            return false
+        }
+    }
+    |> take(1)
+    |> map { _ -> Void in
+        Logger.shared.log("Push Registration", "Telegram network ready")
+        return Void()
+    }
+
+    return combineLatest(
+        masterNotificationsKey(account: account, ignoreDisabled: false),
+        networkReady
+    )
+    |> mapToSignal { masterKey, _ -> Signal<Bool, NoError> in
         let mappedType: Int32
         var keyData = Data()
         switch type {
