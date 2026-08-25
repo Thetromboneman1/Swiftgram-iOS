@@ -51,6 +51,38 @@ Physical testing of optimized build `1787340001` found that messages appeared on
 
 The app now embeds the APNs environment resolved from the selected provisioning profile into its main Info.plist and uses that signing-derived value for both Telegram device registration and authorization-code push configuration. Development profiles use APNs sandbox in Debug and Release builds; production profiles continue to use production APNs. A compile-mode fallback remains only for legacy builds without the new metadata. Focused tests cover development, production, normalization, and fallback behavior. APNs token logging now records only token length, never the token value.
 
+### Telegram provider certificate and registration recovery
+
+Further physical testing showed that foreground synchronization could still
+hide a failed push path. The final repair treats Telegram device registration
+as an observable network operation:
+
+- transient `account.registerDevice` failures use a 15-second request timeout
+  and capped backoff instead of being reported as success;
+- permanent errors and invalidated tokens reach the existing APNs refresh path;
+- completion-only VoIP registration signals are converted into explicit
+  completion values so they cannot suppress the APNs result handler; and
+- token registration waits until the account network reports `updating` or
+  `online`, avoiding requests stranded while the app is backgrounded.
+
+Telegram also requires its own APNs provider certificate for the API
+application used by the build. The issued Apple Push Services certificate was
+round-tripped through PKCS#12 and exported with `openssl pkcs12 -nodes
+-clcerts`, then uploaded to both APNs slots at `my.telegram.org/apps`. The
+portal displayed the issued certificate's exact SHA-1 fingerprint in both
+slots. Certificate, private key, API hash, and device token remain outside Git.
+
+Physical acceptance completed on 2026-08-24 with Swiftgram 12.9.2 build
+`1787520001` from commit `76ba6b55a9`. The optimized signed IPA passed
+`verify-ipa`, nested-signature and checksum validation; its SHA-256 is
+`98ae84b56af41f092b83858cbae4e37ca0af0d880935859037505d261f7ca14a`.
+Exact-commit CI run
+[32793506374](https://github.com/Thetromboneman1/Swiftgram-iOS/actions/runs/32793506374)
+passed. With Swiftgram backgrounded and the phone locked, a scheduled command
+to Telegram's verified BotFather produced a normal incoming reply notification
+before the app was opened. This is the end-to-end acceptance boundary; seeing
+the reply only after foregrounding is not a push pass.
+
 ## Reinstall command
 
 After verification, extract the staged IPA into a private temporary directory and install the `.app`, not the IPA ZIP:
