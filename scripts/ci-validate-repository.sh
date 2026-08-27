@@ -198,14 +198,36 @@ if os.environ.get("CI_VALIDATION_SNAPSHOT") != "true":
         )
 PY
 
-if rg --line-number 'pull_request_target|permissions:[[:space:]]*write-all|persist-credentials:[[:space:]]*true|secrets\.' .github/workflows; then
-    echo "repository-policy: unsafe GitHub Actions trigger, permission, or secret reference" >&2
+if rg --line-number 'pull_request_target|permissions:[[:space:]]*write-all|persist-credentials:[[:space:]]*true' .github/workflows; then
+    echo "repository-policy: unsafe GitHub Actions trigger or permission" >&2
     exit 1
 fi
 
 python3 - <<'PY'
 import re
 from pathlib import Path
+
+allowed_secret_references = {
+    Path(".github/workflows/workflow-lifecycle-email.yml"): {
+        "secrets.GITHUB_TOKEN",
+        "secrets.OP_SERVICE_ACCOUNT_TOKEN",
+    },
+}
+workflow_paths = set(Path(".github/workflows").glob("*.yml"))
+workflow_paths.update(Path(".github/workflows").glob("*.yaml"))
+for path in sorted(workflow_paths):
+    text = path.read_text(encoding="utf-8")
+    if "secrets[" in text:
+        raise SystemExit(
+            f"repository-policy: dynamic secret reference is not allowed in {path}"
+        )
+    references = set(re.findall(r"\bsecrets\.[A-Za-z_][A-Za-z0-9_]*", text))
+    unexpected = references - allowed_secret_references.get(path, set())
+    if unexpected:
+        raise SystemExit(
+            f"repository-policy: unapproved secret reference in {path}: "
+            + ", ".join(sorted(unexpected))
+        )
 
 expected_gitleaks_config = (
     'title = "Swiftgram Boneman secret scanning"\n\n'
