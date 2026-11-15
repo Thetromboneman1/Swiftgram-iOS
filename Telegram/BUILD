@@ -583,7 +583,7 @@ official_communication_notifications_fragment = """
 <key>com.apple.developer.usernotifications.communication</key>
 <true/>
 """
-communication_notifications_fragment = official_communication_notifications_fragment # MARK: Swiftgram if telegram_bundle_id in official_bundle_ids else ""
+communication_notifications_fragment = official_communication_notifications_fragment if telegram_bundle_id in official_bundle_ids else "" # MARK: Boneman personal-signing: not in the dev profile
 
 official_notification_filtering_fragment = """
 <key>com.apple.developer.usernotifications.filtering</key>
