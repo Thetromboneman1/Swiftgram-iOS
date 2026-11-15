@@ -520,7 +520,7 @@ official_carplay_fragment = """
 <key>com.apple.developer.carplay-messaging</key>
 <true/>
 """
-carplay_fragment = official_carplay_fragment # MARK: Swiftgram if telegram_bundle_id in official_bundle_ids else ""
+carplay_fragment = official_carplay_fragment if telegram_bundle_id in official_bundle_ids else "" # MARK: Boneman personal-signing: CarPlay entitlement is not in the dev profile
 
 icloud_fragment = "" if not telegram_enable_icloud else """
 <key>com.apple.developer.icloud-services</key>
